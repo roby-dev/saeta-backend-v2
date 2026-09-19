@@ -81,11 +81,18 @@ export class UsersController {
     @Query() query: GetUsersQueryDto,
   ): Promise<{ ok: boolean } & GetUsersResult> {
     const result: GetUsersResult = await this.queryBus.execute(
-      new GetUsersQuery(query.page, query.limit, query.role, query.statusAccount),
+      new GetUsersQuery(
+        query.page,
+        query.limit,
+        query.role,
+        query.statusAccount,
+        query.search,
+      ),
     );
 
     return { ok: true, ...result };
   }
+
 
   @Get('all')
   @UseGuards(JwtAuthGuard, RolesGuard)

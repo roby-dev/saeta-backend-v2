@@ -18,9 +18,10 @@ export class GetUsersHandler implements IQueryHandler<GetUsersQuery, GetUsersRes
     const limit = Math.max(1, Math.min(100, query.limit));
     const skip = (page - 1) * limit;
 
-    const { users, total } = await this.users.findMany({
+    const { users, total, counts } = await this.users.findMany({
       role: query.role,
       statusAccount: query.statusAccount,
+      search: query.search,
       skip,
       limit,
     });
@@ -31,6 +32,8 @@ export class GetUsersHandler implements IQueryHandler<GetUsersQuery, GetUsersRes
       page,
       limit,
       totalPages: Math.ceil(total / limit),
+      counts,
     };
   }
 }
+

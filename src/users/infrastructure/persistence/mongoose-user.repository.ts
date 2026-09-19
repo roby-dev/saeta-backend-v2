@@ -77,11 +77,22 @@ export class MongooseUserRepository implements UserRepository {
     if (filter.statusAccount) {
       query.statusAccount = filter.statusAccount;
     }
+    if (filter.search && filter.search.trim().length > 0) {
+      const sanitized = filter.search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchRegex = new RegExp(sanitized, 'i');
+      query.$or = [
+        { name: { $regex: searchRegex } },
+        { lastname: { $regex: searchRegex } },
+        { DNI: { $regex: searchRegex } },
+        { email: { $regex: searchRegex } },
+        { phone: { $regex: searchRegex } },
+      ];
+    }
 
     const skip = filter.skip ?? 0;
     const limit = filter.limit ?? 10;
 
-    const [docs, total] = await Promise.all([
+    const [docs, total, roleAgg, statusAgg] = await Promise.all([
       this.userModel
         .find(query)
         .sort({ createdAt: -1 })
@@ -90,11 +101,40 @@ export class MongooseUserRepository implements UserRepository {
         .lean()
         .exec(),
       this.userModel.countDocuments(query).exec(),
+      this.userModel.aggregate<{ _id: string; count: number }>([
+        { $group: { _id: '$role', count: { $sum: 1 } } },
+      ]),
+      this.userModel.aggregate<{ _id: string; count: number }>([
+        { $group: { _id: '$statusAccount', count: { $sum: 1 } } },
+      ]),
     ]);
+
+    let totalAllUsers = 0;
+    const roleCounts: Record<string, number> = {};
+    for (const item of roleAgg) {
+      roleCounts[item._id] = item.count;
+      totalAllUsers += item.count;
+    }
+
+    const statusCounts: Record<string, number> = {};
+    for (const item of statusAgg) {
+      statusCounts[item._id] = item.count;
+    }
+
+    const counts = {
+      total: totalAllUsers,
+      admin: roleCounts['ADMIN'] ?? 0,
+      baseSecurity: roleCounts['BASE_SEGURIDAD'] ?? 0,
+      securityPersonnel: roleCounts['PERSONAL_SEGURIDAD'] ?? 0,
+      citizen: roleCounts['CIUDADANO'] ?? 0,
+      enabled: statusCounts['HABILITADO'] ?? 0,
+      disabled: statusCounts['INHABILITADO'] ?? 0,
+    };
 
     return {
       users: (docs as UserDocument[]).map((d) => this.toEntity(d)),
       total,
+      counts,
     };
   }
 

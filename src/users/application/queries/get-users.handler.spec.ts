@@ -55,22 +55,25 @@ describe('GetUsersHandler', () => {
     expect(repo.findMany).toHaveBeenCalledWith({
       role: undefined,
       statusAccount: undefined,
+      search: undefined,
       skip: 0,
       limit: 10,
     });
   });
 
-  it('clamps invalid page and limit values safely', async () => {
+  it('clamps invalid page and limit values safely and forwards search', async () => {
     const repo = mockRepo();
     const handler = new GetUsersHandler(repo);
 
-    await handler.execute(new GetUsersQuery(-5, 500));
+    await handler.execute(new GetUsersQuery(-5, 500, undefined, undefined, 'Carlos'));
 
     expect(repo.findMany).toHaveBeenCalledWith({
       role: undefined,
       statusAccount: undefined,
+      search: 'Carlos',
       skip: 0,
       limit: 100, // clamped to max 100
     });
   });
 });
+

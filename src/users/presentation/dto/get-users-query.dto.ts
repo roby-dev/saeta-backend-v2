@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import {
   type AccountStatus,
   accountStatuses,
@@ -28,4 +28,9 @@ export class GetUsersQueryDto {
   @IsOptional()
   @IsIn(accountStatuses)
   statusAccount?: AccountStatus;
+
+  @IsOptional()
+  @IsString()
+  search?: string;
 }
+

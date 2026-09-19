@@ -35,6 +35,7 @@ export interface UpdateUserData {
 export interface FindUsersFilter {
   role?: UserRole;
   statusAccount?: AccountStatus;
+  search?: string;
   skip?: number;
   limit?: number;
 }
@@ -42,6 +43,15 @@ export interface FindUsersFilter {
 export interface PaginatedUsers {
   users: UserEntity[];
   total: number;
+  counts?: {
+    total: number;
+    admin: number;
+    baseSecurity: number;
+    securityPersonnel: number;
+    citizen: number;
+    enabled: number;
+    disabled: number;
+  };
 }
 
 export interface UserRepository {
