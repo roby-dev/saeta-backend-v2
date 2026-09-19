@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PassportModule } from '@nestjs/passport';
 import type { StringValue } from 'ms';
+import { RefreshTokenHandler } from './application/commands/refresh-token.handler.js';
 import { SignInHandler } from './application/commands/sign-in.handler.js';
 import { GetCurrentUserHandler } from './application/queries/get-current-user.handler.js';
 import { AUTH_USER_REPOSITORY } from './domain/auth-user.repository.js';
@@ -31,6 +32,7 @@ import { RolesGuard } from './presentation/roles.guard.js';
   controllers: [AuthController],
   providers: [
     SignInHandler,
+    RefreshTokenHandler,
     GetCurrentUserHandler,
     JwtStrategy,
     JwtAuthGuard,

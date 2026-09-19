@@ -1,21 +1,26 @@
-import { Inject, UnauthorizedException } from '@nestjs/common';
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import type { StringValue } from 'ms';
 import type { AuthUserProfile } from '../../domain/auth-user.js';
 import {
   AUTH_USER_REPOSITORY,
   type AuthUserRepository,
 } from '../../domain/auth-user.repository.js';
+import type { RefreshTokenPayload } from './refresh-token.command.js';
 import type { AccessTokenPayload, SignInResult } from './sign-in.command.js';
 import { SignInCommand } from './sign-in.command.js';
 
+@Injectable()
 @CommandHandler(SignInCommand)
 export class SignInHandler implements ICommandHandler<SignInCommand, SignInResult> {
   constructor(
     @Inject(AUTH_USER_REPOSITORY)
     private readonly users: AuthUserRepository,
     private readonly jwtService: JwtService,
+    private readonly config: ConfigService,
   ) {}
 
   async execute(command: SignInCommand): Promise<SignInResult> {
@@ -28,11 +33,36 @@ export class SignInHandler implements ICommandHandler<SignInCommand, SignInResul
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const payload: AccessTokenPayload = {
+    const accessSecret = this.config.getOrThrow<string>('JWT_SECRET');
+    const accessExpiresIn = this.config.get<string>('JWT_EXPIRES_IN') ?? '15m';
+    const refreshSecret =
+      this.config.get<string>('JWT_REFRESH_SECRET') || accessSecret;
+    const refreshExpiresIn = this.config.get<string>('JWT_REFRESH_EXPIRES_IN') ?? '1d';
+
+    const accessPayload: AccessTokenPayload = {
       sub: user.id,
       email: user.email,
       role: user.role,
+      tokenType: 'access',
     };
+
+    const refreshPayload: RefreshTokenPayload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      tokenType: 'refresh',
+    };
+
+    const [accessToken, refreshToken] = await Promise.all([
+      this.jwtService.signAsync(accessPayload, {
+        secret: accessSecret,
+        expiresIn: accessExpiresIn as StringValue,
+      }),
+      this.jwtService.signAsync(refreshPayload, {
+        secret: refreshSecret,
+        expiresIn: refreshExpiresIn as StringValue,
+      }),
+    ]);
 
     const userProfile: AuthUserProfile = {
       id: user.id,
@@ -48,7 +78,8 @@ export class SignInHandler implements ICommandHandler<SignInCommand, SignInResul
     if (user.availability !== undefined) userProfile.availability = user.availability;
 
     return {
-      accessToken: await this.jwtService.signAsync(payload),
+      accessToken,
+      refreshToken,
       user: userProfile,
     };
   }

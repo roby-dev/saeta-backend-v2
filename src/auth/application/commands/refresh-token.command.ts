@@ -1,21 +1,18 @@
 import type { AuthUserProfile, UserRole } from '../../domain/auth-user.js';
 
-export class SignInCommand {
-  constructor(
-    readonly email: string,
-    readonly password: string,
-  ) {}
+export class RefreshTokenCommand {
+  constructor(readonly refreshToken: string) {}
 }
 
-export interface SignInResult {
+export interface RefreshTokenResult {
   accessToken: string;
   refreshToken: string;
   user: AuthUserProfile;
 }
 
-export interface AccessTokenPayload {
+export interface RefreshTokenPayload {
   sub: string;
   email: string;
   role: UserRole;
-  tokenType?: 'access';
+  tokenType: 'refresh';
 }
