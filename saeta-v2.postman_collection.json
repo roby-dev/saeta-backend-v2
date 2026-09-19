@@ -1,0 +1,893 @@
+{
+  "info": {
+    "_postman_id": "saeta-backend-v2-collection",
+    "name": "SAETA Backend v2 API",
+    "description": "API collection for SAETA v2 (NestJS Clean Architecture) with Auth and Users modules",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "alertId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "stateId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "typeId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tempId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.accessToken) {",
+                  "        pm.collectionVariables.set('token', json.accessToken);",
+                  "    }",
+                  "    if (json.user && json.user.id) {",
+                  "        pm.collectionVariables.set('userId', json.user.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"operator@example.com\",\n  \"password\": \"password\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Get Profile (Me)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "auth", "me"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Create User (Citizen or Admin-provisioned)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.user && json.user.id) {",
+                  "        pm.collectionVariables.set('userId', json.user.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "description": "Optional: include to create users with elevated roles if ADMIN"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Carlos\",\n  \"lastname\": \"Perez\",\n  \"dni\": \"12345678\",\n  \"phone\": \"987654321\",\n  \"email\": \"carlos.perez@example.com\",\n  \"password\": \"Password123!\",\n  \"role\": \"CIUDADANO\",\n  \"emergencyContacts\": [\n    {\n      \"name\": \"Maria Perez\",\n      \"phone\": \"911222333\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "users"]
+            }
+          }
+        },
+        {
+          "name": "Get Users (Paginated)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/users?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "users"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "role", "value": "CIUDADANO", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Security Personnel",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/users/security-personnel",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "users", "security-personnel"]
+            }
+          }
+        },
+        {
+          "name": "Get User By ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "users", "{{userId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Carlos Alberto\",\n  \"phone\": \"987654320\",\n  \"availability\": \"DISPONIBLE\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "users", "{{userId}}"]
+            }
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"Password123!\",\n  \"newPassword\": \"NewPassword456!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/users/{{userId}}/password",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "users", "{{userId}}", "password"]
+            }
+          }
+        },
+        {
+          "name": "Verify Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"password\": \"NewPassword456!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/users/pass",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "users", "pass"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Alerts",
+      "item": [
+        {
+          "name": "Create Alert",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.alerts && json.alerts.id) {",
+                  "        pm.collectionVariables.set('alertId', json.alerts.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": -18.0134,\n  \"longitude\": -70.2512,\n  \"type\": \"615e3b0c55bc167109440f36\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/alerts",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "alerts"]
+            }
+          }
+        },
+        {
+          "name": "Get Alerts (Paginated)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/alerts?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "alerts"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Alert by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/alerts/{{alertId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "alerts", "{{alertId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Alert (Attend / Resolve)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"state\": \"6163a83ec89043838a76243a\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/alerts/{{alertId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "alerts", "{{alertId}}"]
+            }
+          }
+        },
+        {
+          "name": "Rate Alert (Feedback)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"commentary\": \"Llegaron rápido al lugar\",\n  \"score\": 5\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/alerts/{{alertId}}/feedback",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "alerts", "{{alertId}}", "feedback"]
+            }
+          }
+        },
+        {
+          "name": "Get Alerts by User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/alerts/user/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "alerts", "user", "{{userId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Alerts by Attended Personnel",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/alerts/attended/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "alerts", "attended", "{{userId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Pending Alerts",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/alerts",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "alerts"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "States",
+      "item": [
+        {
+          "name": "Get States",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.states && json.states.length > 0) {",
+                  "        pm.collectionVariables.set('stateId', json.states[0].id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/states",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "states"]
+            }
+          }
+        },
+        {
+          "name": "Get State by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/states/{{stateId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "states", "{{stateId}}"]
+            }
+          }
+        },
+        {
+          "name": "Create State",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.state && json.state.id) {",
+                  "        pm.collectionVariables.set('stateId', json.state.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"CANCELADO\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/states",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "states"]
+            }
+          }
+        },
+        {
+          "name": "Update State",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"CANCELADO DEFINITIVO\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/states/{{stateId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "states", "{{stateId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Types",
+      "item": [
+        {
+          "name": "Get Types",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.types && json.types.length > 0) {",
+                  "        pm.collectionVariables.set('typeId', json.types[0].id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/types?desde=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "types"],
+              "query": [
+                {
+                  "key": "desde",
+                  "value": "0"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Type by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/types/{{typeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "types", "{{typeId}}"]
+            }
+          }
+        },
+        {
+          "name": "Create Type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.type && json.type.id) {",
+                  "        pm.collectionVariables.set('typeId', json.type.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Incendio Forestal\",\n  \"priority\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/types",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "types"]
+            }
+          }
+        },
+        {
+          "name": "Update Type",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Incendio Urbano\",\n  \"priority\": 2\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/types/{{typeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "types", "{{typeId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Temps",
+      "item": [
+        {
+          "name": "Get Temps",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.temps && json.temps.length > 0) {",
+                  "        pm.collectionVariables.set('tempId', json.temps[0].id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/temps",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "temps"]
+            }
+          }
+        },
+        {
+          "name": "Get Temp by User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/temps/user/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "temps", "user", "{{userId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Temp by ID or User (Legacy)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/temps/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "temps", "{{userId}}"]
+            }
+          }
+        },
+        {
+          "name": "Create Temp",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.temp && json.temp.id) {",
+                  "        pm.collectionVariables.set('tempId', json.temp.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user\": \"{{userId}}\",\n  \"tempPassword\": \"temporal12345\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/temps",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "temps"]
+            }
+          }
+        },
+        {
+          "name": "Delete Temp",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/temps/{{tempId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "temps", "{{tempId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Uploads",
+      "item": [
+        {
+          "name": "Upload User Avatar",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/uploads/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "uploads", "{{userId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Avatar Image (Redirect or Static)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/uploads/no-image",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "uploads", "no-image"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+import { IsNotEmpty, IsString } from 'class-validator';
+
+export class CreateStateDto {
+  @IsString()
+  @IsNotEmpty({ message: 'El nombre del estado de alerta es obligatorio' })
+  name: string;
+}
