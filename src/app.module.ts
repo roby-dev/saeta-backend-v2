@@ -4,14 +4,15 @@ import { CqrsModule } from '@nestjs/cqrs';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from './auth/auth.module.js';
 import { validateEnvironment } from './config/environment.validation.js';
-import { UsersModule } from './users/users.module.js';
-import { AlertsModule } from './alerts/alerts.module.js';
-import { StatesModule } from './states/states.module.js';
-import { TypesModule } from './types/types.module.js';
-import { TempsModule } from './temps/temps.module.js';
-import { UploadsModule } from './uploads/uploads.module.js';
-import { TelemetryModule } from './telemetry/telemetry.module.js';
 import { AppController } from './app.controller.js';
+import { AlertsModule } from './alerts/alerts.module.js';
+import { DashboardModule } from './dashboard/dashboard.module.js';
+import { StatesModule } from './states/states.module.js';
+import { TelemetryModule } from './telemetry/telemetry.module.js';
+import { TempsModule } from './temps/temps.module.js';
+import { TypesModule } from './types/types.module.js';
+import { UploadsModule } from './uploads/uploads.module.js';
+import { UsersModule } from './users/users.module.js';
 
 @Module({
   controllers: [AppController],
@@ -32,6 +33,7 @@ import { AppController } from './app.controller.js';
     TypesModule,
     TempsModule,
     UploadsModule,
+    DashboardModule,
   ],
 })
 export class AppModule {}

@@ -39,10 +39,10 @@ export class User {
   @Prop({ required: true, select: false })
   password: string;
 
-  @Prop({ required: true, enum: userRoles, default: 'CIUDADANO' })
+  @Prop({ required: true, type: String, enum: userRoles, default: 'CIUDADANO' })
   role: UserRole;
 
-  @Prop({ required: true, enum: accountStatuses, default: 'HABILITADO' })
+  @Prop({ required: true, type: String, enum: accountStatuses, default: 'HABILITADO' })
   statusAccount: AccountStatus;
 
   @Prop({ default: () => [] })
