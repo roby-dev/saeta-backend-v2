@@ -77,7 +77,7 @@ export class MongooseAlertRepository implements AlertRepository {
     const [docs, total, alertsByStateAgg, statesList] = await Promise.all([
       this.alertModel
         .find(query)
-        .sort({ createdAt: -1 })
+        .sort({ _id: -1 })
         .skip(skip)
         .limit(limit)
         .populate<{ id_user: PopulatedUser }>('id_user', 'name lastname DNI image role email phone')
@@ -150,7 +150,7 @@ export class MongooseAlertRepository implements AlertRepository {
     const [docs, total] = await Promise.all([
       this.alertModel
         .find(query)
-        .sort({ createdAt: -1 })
+        .sort({ _id: -1 })
         .populate<{ id_user: PopulatedUser }>('id_user', 'name lastname DNI image role email phone')
         .populate<{ attendedBy?: PopulatedUser }>(
           'attendedBy',
@@ -179,7 +179,7 @@ export class MongooseAlertRepository implements AlertRepository {
     const [docs, total] = await Promise.all([
       this.alertModel
         .find(query)
-        .sort({ createdAt: -1 })
+        .sort({ _id: -1 })
         .populate<{ id_user: PopulatedUser }>('id_user', 'name lastname DNI image role email phone')
         .populate<{ attendedBy?: PopulatedUser }>(
           'attendedBy',
@@ -313,15 +313,15 @@ export class MongooseAlertRepository implements AlertRepository {
       id: doc._id.toString(),
       userId: isUserPopulated
         ? (doc.id_user as PopulatedUser)._id.toString()
-        : doc.id_user.toString(),
+        : doc.id_user ? doc.id_user.toString() : '',
       latitude: doc.latitude,
       longitude: doc.longitude,
       typeId: isTypePopulated
         ? (doc.type as PopulatedNamed)._id.toString()
-        : doc.type.toString(),
+        : doc.type ? doc.type.toString() : '',
       stateId: isStatePopulated
         ? (doc.state as PopulatedNamed)._id.toString()
-        : doc.state.toString(),
+        : doc.state ? doc.state.toString() : '',
       creationDate: doc.creationDate,
       attentionDate: doc.attentionDate,
       culminationDate: doc.culminationDate,
