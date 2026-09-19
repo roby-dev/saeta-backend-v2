@@ -28,6 +28,11 @@ describe('UpdateAlertHandler', () => {
     ),
     deletePending: vi.fn(),
     getDefaultPendingStateId: vi.fn(),
+    getStateName: vi.fn().mockImplementation((stateId) => {
+      if (stateId.includes('resolved')) return Promise.resolve('Resuelta');
+      if (stateId.includes('rejected')) return Promise.resolve('Rechazada');
+      return Promise.resolve('En proceso');
+    }),
   });
 
   it('allows security personnel to attend an alert', async () => {
@@ -46,6 +51,24 @@ describe('UpdateAlertHandler', () => {
     expect(result.attendedById).toBe('security-1');
     expect(result.attentionDate).toBeDefined();
   });
+
+  it('automatically stamps culminationDate when transitioning to terminal state', async () => {
+    const repo = mockRepo();
+    const handler = new UpdateAlertHandler(repo);
+
+    const command = new UpdateAlertCommand(
+      'alert-1',
+      'security-1',
+      'PERSONAL_SEGURIDAD',
+      { stateId: 'state-resolved' },
+    );
+
+    const result = await handler.execute(command);
+    expect(result.stateId).toBe('state-resolved');
+    expect(result.culminationDate).toBeDefined();
+    expect(result.culminationDate).toMatch(/^\d{2}\/\d{2}\/\d{4},\d{2}:\d{2}:\d{2}$/);
+  });
+
 
   it('forbids citizens from updating an alert directly', async () => {
     const repo = mockRepo();

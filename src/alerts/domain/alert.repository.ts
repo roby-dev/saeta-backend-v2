@@ -51,5 +51,7 @@ export interface AlertRepository {
   update(id: string, data: UpdateAlertData): Promise<AlertEntity | null>;
   deletePending(): Promise<number>;
   getDefaultPendingStateId(): Promise<string | null>;
+  getStateName(stateId: string): Promise<string | null>;
 }
+
 

@@ -17,23 +17,26 @@ import {
 } from '../../domain/alert.repository.js';
 import { CreateAlertCommand } from './create-alert.command.js';
 
+const limaDateTimeFormatter = new Intl.DateTimeFormat('es-PE', {
+  timeZone: 'America/Lima',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
+});
+
 export function getLimaFormattedDate(date: Date = new Date()): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const lima = new Date(date.toLocaleString('en-US', { timeZone: 'America/Lima' }));
-  return (
-    pad(lima.getDate()) +
-    '/' +
-    pad(lima.getMonth() + 1) +
-    '/' +
-    lima.getFullYear() +
-    ',' +
-    pad(lima.getHours()) +
-    ':' +
-    pad(lima.getMinutes()) +
-    ':' +
-    pad(lima.getSeconds())
-  );
+  const parts = limaDateTimeFormatter.formatToParts(date);
+  const map: Record<string, string> = {};
+  for (const part of parts) {
+    map[part.type] = part.value;
+  }
+  return `${map.day}/${map.month}/${map.year},${map.hour}:${map.minute}:${map.second}`;
 }
+
 
 @CommandHandler(CreateAlertCommand)
 export class CreateAlertHandler implements ICommandHandler<CreateAlertCommand, AlertEntity> {

@@ -40,6 +40,25 @@ export class UpdateAlertHandler implements ICommandHandler<UpdateAlertCommand, A
       payload.attentionDate = getLimaFormattedDate();
     }
 
+    // Auto-fill culminationDate if moving to terminal state (Resuelta, Rechazada, Cancelada)
+    if (payload.stateId) {
+      const stateName = await this.alerts.getStateName(payload.stateId);
+      if (stateName) {
+        const upper = stateName.toUpperCase();
+        const isTerminal =
+          upper.includes('RESUELT') ||
+          upper.includes('RECHAZAD') ||
+          upper.includes('CANCELAD');
+
+        if (isTerminal && !payload.culminationDate) {
+          payload.culminationDate = getLimaFormattedDate();
+        } else if (!isTerminal && upper.includes('PROCESO') && payload.culminationDate === undefined) {
+          payload.culminationDate = '';
+        }
+      }
+    }
+
+
     const updated = await this.alerts.update(command.alertId, payload);
     if (!updated) {
       throw new NotFoundException('No se encontró la alerta.');

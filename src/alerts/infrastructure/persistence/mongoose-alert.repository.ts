@@ -282,6 +282,16 @@ export class MongooseAlertRepository implements AlertRepository {
     return '6163a7eac89043838a762432';
   }
 
+  async getStateName(stateId: string): Promise<string | null> {
+    if (!Types.ObjectId.isValid(stateId)) {
+      return null;
+    }
+
+    const state = await this.stateModel.findById(stateId).lean().exec();
+    return state?.name ?? null;
+  }
+
+
   private toEntity(
     doc: AlertDocument & {
       _id: Types.ObjectId;
