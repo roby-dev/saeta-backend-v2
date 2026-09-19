@@ -39,6 +39,13 @@ export function formatDurationSeconds(seconds: number): string {
   return `${mins} min ${secs} seg`;
 }
 
+export function getWeekNumber(date: Date): number {
+  const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
+  const pastDaysOfYear = (date.getTime() - firstDayOfYear.getTime()) / 86400000;
+  return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+}
+
+
 interface PopulatedCommentUser {
   _id: Types.ObjectId;
   name: string;
@@ -203,9 +210,22 @@ export class GetDashboardOverviewHandler
     let totalElapsedCount = 0;
 
     const monthlySeries = new Array<number>(12).fill(0);
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentWeek = getWeekNumber(now);
+    let weeklyAlerts = 0;
 
     for (const alert of allDateAlerts) {
       const created = parseAlertDate(alert.creationDate);
+
+      // Weekly alerts count for current week
+      if (
+        created &&
+        created.getFullYear() === currentYear &&
+        getWeekNumber(created) === currentWeek
+      ) {
+        weeklyAlerts++;
+      }
 
       // Monthly series
       if (created && created.getFullYear() === targetYear) {
@@ -285,6 +305,7 @@ export class GetDashboardOverviewHandler
       monthlySeries,
       recentCommentaries,
       year: targetYear,
+      weeklyAlerts,
     };
   }
 }

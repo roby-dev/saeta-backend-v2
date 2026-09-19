@@ -146,5 +146,6 @@ describe('GetDashboardOverviewHandler', () => {
 
     expect(result.recentCommentaries.length).toBe(1);
     expect(result.recentCommentaries[0].userName).toBe('Juan Perez');
+    expect(result.weeklyAlerts).toBeDefined();
   });
 });

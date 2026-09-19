@@ -47,4 +47,6 @@ export interface DashboardOverviewDto {
   monthlySeries: number[];
   recentCommentaries: RecentCommentaryDto[];
   year: number;
+  weeklyAlerts: number;
 }
+
