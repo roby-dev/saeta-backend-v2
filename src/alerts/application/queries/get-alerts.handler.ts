@@ -18,7 +18,7 @@ export class GetAlertsHandler implements IQueryHandler<GetAlertsQuery, GetAlerts
     const limit = Math.max(1, Math.min(100, query.limit));
     const skip = (page - 1) * limit;
 
-    const { alerts, total } = await this.alerts.findMany({
+    const { alerts, total, stateCounts } = await this.alerts.findMany({
       stateId: query.stateId,
       typeId: query.typeId,
       skip,
@@ -31,6 +31,8 @@ export class GetAlertsHandler implements IQueryHandler<GetAlertsQuery, GetAlerts
       page,
       limit,
       totalPages: Math.ceil(total / limit),
+      stateCounts,
     };
   }
 }
+

@@ -27,9 +27,23 @@ export interface FindAlertsFilter {
   limit?: number;
 }
 
+export interface AlertStateCounts {
+  pending: number;
+  inProcess: number;
+  resolved: number;
+  rejected: number;
+  total: number;
+}
+
+export interface PaginatedAlerts {
+  alerts: AlertEntity[];
+  total: number;
+  stateCounts?: AlertStateCounts;
+}
+
 export interface AlertRepository {
   findById(id: string): Promise<AlertEntity | null>;
-  findMany(filter: FindAlertsFilter): Promise<{ alerts: AlertEntity[]; total: number }>;
+  findMany(filter: FindAlertsFilter): Promise<PaginatedAlerts>;
   findByUser(userId: string): Promise<{ alerts: AlertEntity[]; total: number }>;
   findByAttendedUser(attendedById: string): Promise<{ alerts: AlertEntity[]; total: number }>;
   findPendingByUser(userId: string): Promise<AlertEntity | null>;
@@ -38,3 +52,4 @@ export interface AlertRepository {
   deletePending(): Promise<number>;
   getDefaultPendingStateId(): Promise<string | null>;
 }
+

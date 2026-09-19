@@ -1,4 +1,5 @@
 import type { AlertEntity } from '../../domain/alert.entity.js';
+import type { AlertStateCounts } from '../../domain/alert.repository.js';
 
 export interface GetAlertsResult {
   alerts: AlertEntity[];
@@ -6,7 +7,9 @@ export interface GetAlertsResult {
   page: number;
   limit: number;
   totalPages: number;
+  stateCounts?: AlertStateCounts;
 }
+
 
 export class GetAlertsQuery {
   constructor(

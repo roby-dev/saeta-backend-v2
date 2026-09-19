@@ -4,8 +4,10 @@ import { type Model, Types } from 'mongoose';
 import type { AlertEntity } from '../../domain/alert.entity.js';
 import type {
   AlertRepository,
+  AlertStateCounts,
   CreateAlertData,
   FindAlertsFilter,
+  PaginatedAlerts,
   UpdateAlertData,
 } from '../../domain/alert.repository.js';
 import { State } from './alert-state.schema.js';
@@ -59,7 +61,7 @@ export class MongooseAlertRepository implements AlertRepository {
     return doc ? this.toEntity(doc as never) : null;
   }
 
-  async findMany(filter: FindAlertsFilter): Promise<{ alerts: AlertEntity[]; total: number }> {
+  async findMany(filter: FindAlertsFilter): Promise<PaginatedAlerts> {
     const query: Record<string, unknown> = {};
 
     if (filter.stateId && Types.ObjectId.isValid(filter.stateId)) {
@@ -72,7 +74,7 @@ export class MongooseAlertRepository implements AlertRepository {
     const skip = filter.skip ?? 0;
     const limit = filter.limit ?? 20;
 
-    const [docs, total] = await Promise.all([
+    const [docs, total, alertsByStateAgg, statesList] = await Promise.all([
       this.alertModel
         .find(query)
         .sort({ createdAt: -1 })
@@ -88,11 +90,53 @@ export class MongooseAlertRepository implements AlertRepository {
         .lean()
         .exec(),
       this.alertModel.countDocuments(query).exec(),
+      this.alertModel.aggregate<{ _id: Types.ObjectId; count: number }>([
+        { $group: { _id: '$state', count: { $sum: 1 } } },
+      ]),
+      this.stateModel.find().lean().exec(),
     ]);
+
+    const stateCountMap = new Map<string, number>();
+    for (const item of alertsByStateAgg) {
+      if (item._id) {
+        stateCountMap.set(item._id.toString(), item.count);
+      }
+    }
+
+    let pending = 0;
+    let inProcess = 0;
+    let resolved = 0;
+    let rejected = 0;
+    let totalAllAlerts = 0;
+
+    for (const st of statesList) {
+      const count = stateCountMap.get(st._id.toString()) ?? 0;
+      totalAllAlerts += count;
+      const upperName = st.name.toUpperCase();
+
+      if (upperName.includes('PENDIENTE')) {
+        pending += count;
+      } else if (upperName.includes('PROCESO')) {
+        inProcess += count;
+      } else if (upperName.includes('RESUELT')) {
+        resolved += count;
+      } else if (upperName.includes('RECHAZAD') || upperName.includes('CANCELAD')) {
+        rejected += count;
+      }
+    }
+
+    const stateCounts: AlertStateCounts = {
+      pending,
+      inProcess,
+      resolved,
+      rejected,
+      total: totalAllAlerts,
+    };
 
     return {
       alerts: docs.map((d) => this.toEntity(d as never)),
       total,
+      stateCounts,
     };
   }
 

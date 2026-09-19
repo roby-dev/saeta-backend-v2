@@ -17,19 +17,31 @@ describe('GetAlertsHandler', () => {
     },
   ];
 
-  const mockRepo = (): AlertRepository => ({
-    findById: vi.fn(),
-    findMany: vi.fn().mockResolvedValue({ alerts: mockAlerts, total: 1 }),
-    findByUser: vi.fn(),
-    findByAttendedUser: vi.fn(),
-    findPendingByUser: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-    deletePending: vi.fn(),
-    getDefaultPendingStateId: vi.fn(),
-  });
-
   it('returns paginated alerts and calculates totalPages', async () => {
+    const mockStateCounts = {
+      pending: 1,
+      inProcess: 0,
+      resolved: 0,
+      rejected: 0,
+      total: 1,
+    };
+
+    const mockRepo = (): AlertRepository => ({
+      findById: vi.fn(),
+      findMany: vi.fn().mockResolvedValue({
+        alerts: mockAlerts,
+        total: 1,
+        stateCounts: mockStateCounts,
+      }),
+      findByUser: vi.fn(),
+      findByAttendedUser: vi.fn(),
+      findPendingByUser: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      deletePending: vi.fn(),
+      getDefaultPendingStateId: vi.fn(),
+    });
+
     const repo = mockRepo();
     const handler = new GetAlertsHandler(repo);
 
@@ -39,5 +51,6 @@ describe('GetAlertsHandler', () => {
     expect(result.total).toBe(1);
     expect(result.page).toBe(1);
     expect(result.totalPages).toBe(1);
+    expect(result.stateCounts).toEqual(mockStateCounts);
   });
 });
