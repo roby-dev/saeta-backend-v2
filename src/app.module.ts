@@ -11,8 +11,10 @@ import { TypesModule } from './types/types.module.js';
 import { TempsModule } from './temps/temps.module.js';
 import { UploadsModule } from './uploads/uploads.module.js';
 import { TelemetryModule } from './telemetry/telemetry.module.js';
+import { AppController } from './app.controller.js';
 
 @Module({
+  controllers: [AppController],
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnvironment }),
     MongooseModule.forRootAsync({

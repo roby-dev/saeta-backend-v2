@@ -7,7 +7,9 @@ import { GlobalExceptionFilter } from './telemetry/presentation/global-exception
 import { LoggingInterceptor } from './telemetry/presentation/logging.interceptor.js';
 import { StructuredLoggerService } from './telemetry/infrastructure/structured-logger.service.js';
 
-dns.setServers(['8.8.8.8', '1.1.1.1']);
+if (process.env.NODE_ENV !== 'production' && process.env.CUSTOM_DNS === 'true') {
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
