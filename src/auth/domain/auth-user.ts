@@ -13,10 +13,23 @@ export interface AuthUser {
   passwordHash: string;
   role: UserRole;
   statusAccount: string;
+  name?: string;
+  lastname?: string;
+  dni?: string;
+  phone?: string;
+  image?: string;
+  availability?: string;
 }
 
 export interface AuthUserProfile {
   id: string;
   email: string;
   role: UserRole;
+  name?: string;
+  lastname?: string;
+  dni?: string;
+  phone?: string;
+  image?: string;
+  statusAccount?: string;
+  availability?: string;
 }

@@ -17,6 +17,24 @@ export class User {
 
   @Prop({ required: true, default: 'HABILITADO' })
   statusAccount: string;
+
+  @Prop({ required: false, trim: true })
+  name?: string;
+
+  @Prop({ required: false, trim: true })
+  lastname?: string;
+
+  @Prop({ required: false, trim: true })
+  DNI?: string;
+
+  @Prop({ required: false, trim: true })
+  phone?: string;
+
+  @Prop({ required: false })
+  image?: string;
+
+  @Prop({ required: false })
+  availability?: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

@@ -26,7 +26,7 @@ describe('SignInHandler', () => {
       handler.execute(new SignInCommand('admin@saeta.test', password)),
     ).resolves.toEqual({
       accessToken: 'signed-token',
-      user: { id: 'user-id', email: 'admin@saeta.test', role: 'ADMIN' },
+      user: { id: 'user-id', email: 'admin@saeta.test', role: 'ADMIN', statusAccount: 'HABILITADO' },
     });
     expect(jwtService.signAsync).toHaveBeenCalledWith({
       sub: 'user-id',

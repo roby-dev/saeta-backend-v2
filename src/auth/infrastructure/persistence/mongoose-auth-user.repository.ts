@@ -29,12 +29,23 @@ export class MongooseAuthUserRepository implements AuthUserRepository {
 
     const user = await this.users
       .findById(id)
-      .select('email role')
+      .select('email role name lastname DNI phone image statusAccount availability')
       .lean()
       .exec();
 
     return user
-      ? { id: user._id.toString(), email: user.email, role: user.role }
+      ? {
+          id: user._id.toString(),
+          email: user.email,
+          role: user.role,
+          name: user.name ?? '',
+          lastname: user.lastname ?? '',
+          dni: user.DNI ?? '',
+          phone: user.phone ?? '',
+          image: user.image,
+          statusAccount: user.statusAccount,
+          availability: user.availability,
+        }
       : null;
   }
 
@@ -45,6 +56,12 @@ export class MongooseAuthUserRepository implements AuthUserRepository {
       passwordHash: user.password,
       role: user.role,
       statusAccount: user.statusAccount,
+      name: user.name,
+      lastname: user.lastname,
+      dni: user.DNI,
+      phone: user.phone,
+      image: user.image,
+      availability: user.availability,
     };
   }
 }
