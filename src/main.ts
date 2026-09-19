@@ -33,6 +33,7 @@ async function bootstrap() {
   app.useGlobalFilters(app.get(GlobalExceptionFilter));
   app.useGlobalInterceptors(app.get(LoggingInterceptor));
 
-  await app.listen(config.getOrThrow<number>('PORT'));
+  const port = config.getOrThrow<number>('PORT');
+  await app.listen(port, '0.0.0.0');
 }
 await bootstrap();
