@@ -1,19 +1,31 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Environment } from '../../../config/environment.validation.js';
+import type { UserRepository } from '../../domain/user.repository.js';
 import { LookupDniHandler } from './lookup-dni.handler.js';
 import { LookupDniQuery } from './lookup-dni.query.js';
 
 describe('LookupDniHandler', () => {
   let handler: LookupDniHandler;
   let mockConfig: Partial<ConfigService<Environment, true>>;
+  let mockUsers: Partial<UserRepository>;
 
   beforeEach(() => {
     mockConfig = {
       get: vi.fn().mockReturnValue('mock-reniec-token'),
     };
-    handler = new LookupDniHandler(mockConfig as ConfigService<Environment, true>);
+    mockUsers = {
+      findByDni: vi.fn().mockResolvedValue(null),
+    };
+    handler = new LookupDniHandler(
+      mockConfig as ConfigService<Environment, true>,
+      mockUsers as UserRepository,
+    );
   });
 
   afterEach(() => {
@@ -26,6 +38,13 @@ describe('LookupDniHandler', () => {
     );
     await expect(handler.execute(new LookupDniQuery('abcdefgh'))).rejects.toBeInstanceOf(
       BadRequestException,
+    );
+  });
+
+  it('throws ConflictException if DNI is already registered in DB', async () => {
+    mockUsers.findByDni = vi.fn().mockResolvedValue({ id: 'user-1', dni: '70123456' } as never);
+    await expect(handler.execute(new LookupDniQuery('70123456'))).rejects.toBeInstanceOf(
+      ConflictException,
     );
   });
 

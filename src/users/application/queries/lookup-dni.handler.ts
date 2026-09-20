@@ -1,7 +1,16 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  NotFoundException,
+} from '@nestjs/common';
 import { type IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { ConfigService } from '@nestjs/config';
 import type { Environment } from '../../../config/environment.validation.js';
+import {
+  USER_REPOSITORY,
+  type UserRepository,
+} from '../../domain/user.repository.js';
 import { LookupDniQuery } from './lookup-dni.query.js';
 
 interface ReniecResponse {
@@ -21,11 +30,20 @@ export interface LookupDniResult {
 
 @QueryHandler(LookupDniQuery)
 export class LookupDniHandler implements IQueryHandler<LookupDniQuery, LookupDniResult> {
-  constructor(private readonly config: ConfigService<Environment, true>) {}
+  constructor(
+    private readonly config: ConfigService<Environment, true>,
+    @Inject(USER_REPOSITORY)
+    private readonly users: UserRepository,
+  ) {}
 
   async execute(query: LookupDniQuery): Promise<LookupDniResult> {
     if (!/^\d{8}$/.test(query.dni)) {
       throw new BadRequestException('DNI must be exactly 8 digits');
+    }
+
+    const existingUser = await this.users.findByDni(query.dni);
+    if (existingUser) {
+      throw new ConflictException('Ya existe una cuenta registrada con este DNI');
     }
 
     const token = this.config.get('RENIEC_TOKEN', { infer: true });

@@ -133,7 +133,6 @@ export class UsersController {
   }
 
   @Get('dni/:dni')
-  @UseGuards(JwtAuthGuard)
   async lookupDni(
     @Param('dni') dni: string,
   ): Promise<LookupDniResult> {
