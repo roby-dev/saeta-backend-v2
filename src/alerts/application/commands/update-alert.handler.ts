@@ -52,7 +52,11 @@ export class UpdateAlertHandler implements ICommandHandler<UpdateAlertCommand, A
           upper.includes('RECHAZAD') ||
           upper.includes('CANCELAD');
 
-        if (isTerminal && !payload.culminationDate) {
+        if (upper.includes('PENDIENT')) {
+          payload.attendedById = '';
+          payload.attentionDate = '';
+          payload.culminationDate = '';
+        } else if (isTerminal && !payload.culminationDate) {
           payload.culminationDate = getLimaFormattedDate();
         } else if (!isTerminal && upper.includes('PROCESO') && payload.culminationDate === undefined) {
           payload.culminationDate = '';

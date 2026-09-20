@@ -242,20 +242,59 @@ export class MongooseAlertRepository implements AlertRepository {
       return null;
     }
 
-    const updateFields: Record<string, unknown> = {};
+    const setFields: Record<string, unknown> = {};
+    const unsetFields: Record<string, unknown> = {};
 
-    if (data.stateId !== undefined && Types.ObjectId.isValid(data.stateId)) {
-      updateFields.state = new Types.ObjectId(data.stateId);
+    if (data.stateId !== undefined) {
+      if (data.stateId && Types.ObjectId.isValid(data.stateId)) {
+        setFields.state = new Types.ObjectId(data.stateId);
+      }
     }
-    if (data.attendedById !== undefined && Types.ObjectId.isValid(data.attendedById)) {
-      updateFields.attendedBy = new Types.ObjectId(data.attendedById);
-    }
-    if (data.attentionDate !== undefined) updateFields.attentionDate = data.attentionDate;
-    if (data.culminationDate !== undefined) updateFields.culminationDate = data.culminationDate;
-    if (data.commentary !== undefined) updateFields.commentary = data.commentary;
-    if (data.score !== undefined) updateFields.score = data.score;
 
-    await this.alertModel.findByIdAndUpdate(id, { $set: updateFields }).exec();
+    if (data.attendedById !== undefined) {
+      if (data.attendedById && Types.ObjectId.isValid(data.attendedById)) {
+        setFields.attendedBy = new Types.ObjectId(data.attendedById);
+      } else {
+        unsetFields.attendedBy = 1;
+      }
+    }
+
+    if (data.attentionDate !== undefined) {
+      if (data.attentionDate) {
+        setFields.attentionDate = data.attentionDate;
+      } else {
+        unsetFields.attentionDate = 1;
+      }
+    }
+
+    if (data.culminationDate !== undefined) {
+      if (data.culminationDate) {
+        setFields.culminationDate = data.culminationDate;
+      } else {
+        unsetFields.culminationDate = 1;
+      }
+    }
+
+    if (data.commentary !== undefined) {
+      if (data.commentary) {
+        setFields.commentary = data.commentary;
+      } else {
+        unsetFields.commentary = 1;
+      }
+    }
+
+    if (data.score !== undefined) {
+      setFields.score = data.score;
+    }
+
+    const updateQuery: Record<string, unknown> = {};
+    if (Object.keys(setFields).length > 0) updateQuery.$set = setFields;
+    if (Object.keys(unsetFields).length > 0) updateQuery.$unset = unsetFields;
+
+    if (Object.keys(updateQuery).length > 0) {
+      await this.alertModel.findByIdAndUpdate(id, updateQuery).exec();
+    }
+
     return this.findById(id);
   }
 
