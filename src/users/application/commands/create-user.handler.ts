@@ -28,7 +28,7 @@ export class CreateUserHandler implements ICommandHandler<CreateUserCommand, Use
     if (existingEmail) {
       throw new ConflictException('Email is already registered');
     }
-    if (existingPhone) {
+    if (existingPhone && existingPhone.role !== 'ADMIN') {
       throw new ConflictException('Phone number is already registered');
     }
 

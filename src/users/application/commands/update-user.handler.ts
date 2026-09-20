@@ -49,7 +49,7 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand, Use
     // Phone collision check
     if (command.data.phone && command.data.phone.trim() !== existingUser.phone) {
       const phoneUser = await this.users.findByPhone(command.data.phone);
-      if (phoneUser && phoneUser.id !== command.targetUserId) {
+      if (phoneUser && phoneUser.id !== command.targetUserId && phoneUser.role !== 'ADMIN') {
         throw new ConflictException('Phone number is already registered');
       }
     }

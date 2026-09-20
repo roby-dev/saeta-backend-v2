@@ -103,13 +103,22 @@ describe('CreateUserHandler', () => {
     );
   });
 
-  it('throws ConflictException when Phone already exists', async () => {
+  it('throws ConflictException when Phone already exists for non-admin user', async () => {
     const repo = mockRepo();
-    repo.findByPhone = vi.fn().mockResolvedValue({ id: 'existing-id' } as never);
+    repo.findByPhone = vi.fn().mockResolvedValue({ id: 'existing-id', role: 'CIUDADANO' } as never);
     const handler = new CreateUserHandler(repo);
 
     await expect(handler.execute(baseCommand)).rejects.toBeInstanceOf(
       ConflictException,
     );
+  });
+
+  it('allows user creation when existing phone belongs to an ADMIN user', async () => {
+    const repo = mockRepo();
+    repo.findByPhone = vi.fn().mockResolvedValue({ id: 'admin-id', role: 'ADMIN' } as never);
+    const handler = new CreateUserHandler(repo);
+
+    const result = await handler.execute(baseCommand);
+    expect(result.id).toBe('new-user-id');
   });
 });

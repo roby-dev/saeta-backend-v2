@@ -143,6 +143,39 @@ describe('UpdateUserHandler', () => {
     );
   });
 
+  it('rejects phone update if phone is taken by another non-admin user', async () => {
+    const repo = mockRepo();
+    repo.findByPhone = vi.fn().mockResolvedValue({ id: 'someone-else', role: 'CIUDADANO' } as never);
+    const handler = new UpdateUserHandler(repo);
+
+    const command = new UpdateUserCommand(
+      'target-user-id',
+      'target-user-id',
+      'CIUDADANO',
+      { phone: '911111111' },
+    );
+
+    await expect(handler.execute(command)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+  });
+
+  it('allows phone update if phone is associated with an ADMIN user', async () => {
+    const repo = mockRepo();
+    repo.findByPhone = vi.fn().mockResolvedValue({ id: 'admin-user-id', role: 'ADMIN' } as never);
+    const handler = new UpdateUserHandler(repo);
+
+    const command = new UpdateUserCommand(
+      'target-user-id',
+      'target-user-id',
+      'CIUDADANO',
+      { phone: '911111111' },
+    );
+
+    const result = await handler.execute(command);
+    expect(result.id).toBe('target-user-id');
+  });
+
   it('throws NotFoundException when user does not exist', async () => {
     const repo = mockRepo();
     repo.findById = vi.fn().mockResolvedValue(null);
