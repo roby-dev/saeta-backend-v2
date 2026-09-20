@@ -25,6 +25,7 @@ const environmentSchema = z.object({
       { message: 'JWT_REFRESH_EXPIRES_IN must not exceed 1 day (e.g. 1d, 24h)' },
     ),
   CORS_ORIGIN: z.string().default('*'),
+  RENIEC_TOKEN: z.string().default(''),
 });
 
 export type Environment = z.infer<typeof environmentSchema>;

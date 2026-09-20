@@ -30,6 +30,8 @@ import {
   GetUsersQuery,
   type GetUsersResult,
 } from '../application/queries/get-users.query.js';
+import { LookupDniQuery } from '../application/queries/lookup-dni.query.js';
+import type { LookupDniResult } from '../application/queries/lookup-dni.handler.js';
 import type { UserEntity } from '../domain/user.entity.js';
 import { ChangePasswordDto } from './dto/change-password.dto.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
@@ -128,6 +130,14 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   getActivePersonalUsers(): { activePersonal: string[] } {
     return { activePersonal: [] };
+  }
+
+  @Get('dni/:dni')
+  @UseGuards(JwtAuthGuard)
+  async lookupDni(
+    @Param('dni') dni: string,
+  ): Promise<LookupDniResult> {
+    return this.queryBus.execute(new LookupDniQuery(dni));
   }
 
   @Get('id/:id')

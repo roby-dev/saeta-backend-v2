@@ -8,6 +8,7 @@ import { VerifyPasswordHandler } from './application/commands/verify-password.ha
 import { GetSecurityPersonnelHandler } from './application/queries/get-security-personnel.handler.js';
 import { GetUserByIdHandler } from './application/queries/get-user-by-id.handler.js';
 import { GetUsersHandler } from './application/queries/get-users.handler.js';
+import { LookupDniHandler } from './application/queries/lookup-dni.handler.js';
 import { USER_REPOSITORY } from './domain/user.repository.js';
 import { MongooseUserRepository } from './infrastructure/persistence/mongoose-user.repository.js';
 import { User, UserSchema } from './infrastructure/persistence/user.schema.js';
@@ -27,6 +28,7 @@ import { UsersController } from './presentation/users.controller.js';
     GetUsersHandler,
     GetUserByIdHandler,
     GetSecurityPersonnelHandler,
+    LookupDniHandler,
     MongooseUserRepository,
     {
       provide: USER_REPOSITORY,
