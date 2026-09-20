@@ -1,3 +1,4 @@
+import type { EventBus } from '@nestjs/cqrs';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import type { AlertEntity } from '../../domain/alert.entity.js';
@@ -16,6 +17,11 @@ describe('UpdateAlertFeedbackHandler', () => {
     creationDate: '19/09/2026,10:00:00',
   };
 
+  const mockEventBus = (): EventBus =>
+    ({
+      publish: vi.fn(),
+    }) as unknown as EventBus;
+
   const mockRepo = (): AlertRepository => ({
     findById: vi.fn().mockResolvedValue(existingAlert),
     findMany: vi.fn(),
@@ -28,11 +34,13 @@ describe('UpdateAlertFeedbackHandler', () => {
     ),
     deletePending: vi.fn(),
     getDefaultPendingStateId: vi.fn(),
+    getStateName: vi.fn(),
   });
 
   it('allows citizen owner to rate and comment on attended alert', async () => {
     const repo = mockRepo();
-    const handler = new UpdateAlertFeedbackHandler(repo);
+    const eventBus = mockEventBus();
+    const handler = new UpdateAlertFeedbackHandler(repo, eventBus);
 
     const command = new UpdateAlertFeedbackCommand(
       'alert-1',
@@ -45,11 +53,13 @@ describe('UpdateAlertFeedbackHandler', () => {
     const result = await handler.execute(command);
     expect(result.commentary).toBe('Excelente atención rápida');
     expect(result.score).toBe(5);
+    expect(eventBus.publish).toHaveBeenCalled();
   });
 
   it('forbids stranger citizen from rating someone else alert', async () => {
     const repo = mockRepo();
-    const handler = new UpdateAlertFeedbackHandler(repo);
+    const eventBus = mockEventBus();
+    const handler = new UpdateAlertFeedbackHandler(repo, eventBus);
 
     const command = new UpdateAlertFeedbackCommand(
       'alert-1',
@@ -67,7 +77,8 @@ describe('UpdateAlertFeedbackHandler', () => {
   it('throws NotFoundException if alert does not exist', async () => {
     const repo = mockRepo();
     repo.findById = vi.fn().mockResolvedValue(null);
-    const handler = new UpdateAlertFeedbackHandler(repo);
+    const eventBus = mockEventBus();
+    const handler = new UpdateAlertFeedbackHandler(repo, eventBus);
 
     const command = new UpdateAlertFeedbackCommand(
       'missing-alert',

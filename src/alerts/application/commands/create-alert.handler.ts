@@ -5,7 +5,8 @@ import {
   Inject,
   NotFoundException,
 } from '@nestjs/common';
-import { CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
+import { CommandHandler, EventBus, type ICommandHandler } from '@nestjs/cqrs';
+import { AlertCreatedEvent } from '../../domain/events/alert-created.event.js';
 import {
   USER_REPOSITORY,
   type UserRepository,
@@ -45,6 +46,7 @@ export class CreateAlertHandler implements ICommandHandler<CreateAlertCommand, A
     private readonly alerts: AlertRepository,
     @Inject(USER_REPOSITORY)
     private readonly users: UserRepository,
+    private readonly eventBus: EventBus,
   ) {}
 
   async execute(command: CreateAlertCommand): Promise<AlertEntity> {
@@ -80,7 +82,7 @@ export class CreateAlertHandler implements ICommandHandler<CreateAlertCommand, A
 
     const creationDate = getLimaFormattedDate();
 
-    return this.alerts.create({
+    const created = await this.alerts.create({
       userId: effectiveUserId,
       latitude: command.latitude,
       longitude: command.longitude,
@@ -88,5 +90,9 @@ export class CreateAlertHandler implements ICommandHandler<CreateAlertCommand, A
       stateId,
       creationDate,
     });
+
+    this.eventBus.publish(new AlertCreatedEvent(created));
+
+    return created;
   }
 }

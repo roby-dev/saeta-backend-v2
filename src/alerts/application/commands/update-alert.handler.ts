@@ -3,7 +3,8 @@ import {
   Inject,
   NotFoundException,
 } from '@nestjs/common';
-import { CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
+import { CommandHandler, EventBus, type ICommandHandler } from '@nestjs/cqrs';
+import { AlertUpdatedEvent } from '../../domain/events/alert-updated.event.js';
 import type { AlertEntity } from '../../domain/alert.entity.js';
 import {
   ALERT_REPOSITORY,
@@ -17,6 +18,7 @@ export class UpdateAlertHandler implements ICommandHandler<UpdateAlertCommand, A
   constructor(
     @Inject(ALERT_REPOSITORY)
     private readonly alerts: AlertRepository,
+    private readonly eventBus: EventBus,
   ) {}
 
   async execute(command: UpdateAlertCommand): Promise<AlertEntity> {
@@ -63,6 +65,8 @@ export class UpdateAlertHandler implements ICommandHandler<UpdateAlertCommand, A
     if (!updated) {
       throw new NotFoundException('No se encontró la alerta.');
     }
+
+    this.eventBus.publish(new AlertUpdatedEvent(updated));
 
     return updated;
   }

@@ -7,6 +7,7 @@ import { validateEnvironment } from './config/environment.validation.js';
 import { AppController } from './app.controller.js';
 import { AlertsModule } from './alerts/alerts.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
+import { RealtimeModule } from './realtime/realtime.module.js';
 import { StatesModule } from './states/states.module.js';
 import { TelemetryModule } from './telemetry/telemetry.module.js';
 import { TempsModule } from './temps/temps.module.js';
@@ -34,6 +35,7 @@ import { UsersModule } from './users/users.module.js';
     TempsModule,
     UploadsModule,
     DashboardModule,
+    RealtimeModule,
   ],
 })
 export class AppModule {}

@@ -1,3 +1,4 @@
+import type { EventBus } from '@nestjs/cqrs';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import type { AlertEntity } from '../../domain/alert.entity.js';
@@ -15,6 +16,11 @@ describe('UpdateAlertHandler', () => {
     stateId: 'state-pending',
     creationDate: '19/09/2026,10:00:00',
   };
+
+  const mockEventBus = (): EventBus =>
+    ({
+      publish: vi.fn(),
+    }) as unknown as EventBus;
 
   const mockRepo = (): AlertRepository => ({
     findById: vi.fn().mockResolvedValue(existingAlert),
@@ -37,7 +43,8 @@ describe('UpdateAlertHandler', () => {
 
   it('allows security personnel to attend an alert', async () => {
     const repo = mockRepo();
-    const handler = new UpdateAlertHandler(repo);
+    const eventBus = mockEventBus();
+    const handler = new UpdateAlertHandler(repo, eventBus);
 
     const command = new UpdateAlertCommand(
       'alert-1',
@@ -54,7 +61,8 @@ describe('UpdateAlertHandler', () => {
 
   it('automatically stamps culminationDate when transitioning to terminal state', async () => {
     const repo = mockRepo();
-    const handler = new UpdateAlertHandler(repo);
+    const eventBus = mockEventBus();
+    const handler = new UpdateAlertHandler(repo, eventBus);
 
     const command = new UpdateAlertCommand(
       'alert-1',
@@ -67,12 +75,13 @@ describe('UpdateAlertHandler', () => {
     expect(result.stateId).toBe('state-resolved');
     expect(result.culminationDate).toBeDefined();
     expect(result.culminationDate).toMatch(/^\d{2}\/\d{2}\/\d{4},\d{2}:\d{2}:\d{2}$/);
+    expect(eventBus.publish).toHaveBeenCalled();
   });
-
 
   it('forbids citizens from updating an alert directly', async () => {
     const repo = mockRepo();
-    const handler = new UpdateAlertHandler(repo);
+    const eventBus = mockEventBus();
+    const handler = new UpdateAlertHandler(repo, eventBus);
 
     const command = new UpdateAlertCommand(
       'alert-1',
@@ -89,7 +98,8 @@ describe('UpdateAlertHandler', () => {
   it('throws NotFoundException if alert does not exist', async () => {
     const repo = mockRepo();
     repo.findById = vi.fn().mockResolvedValue(null);
-    const handler = new UpdateAlertHandler(repo);
+    const eventBus = mockEventBus();
+    const handler = new UpdateAlertHandler(repo, eventBus);
 
     const command = new UpdateAlertCommand(
       'missing-alert',

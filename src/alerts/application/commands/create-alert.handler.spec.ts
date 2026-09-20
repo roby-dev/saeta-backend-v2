@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
+import type { EventBus } from '@nestjs/cqrs';
 import type { UserEntity } from '../../../users/domain/user.entity.js';
 import type { UserRepository } from '../../../users/domain/user.repository.js';
 import type { AlertRepository } from '../../domain/alert.repository.js';
@@ -21,6 +22,11 @@ describe('CreateAlertHandler', () => {
     role: 'CIUDADANO',
     statusAccount: 'HABILITADO',
   };
+
+  const mockEventBus = (): EventBus =>
+    ({
+      publish: vi.fn(),
+    }) as unknown as EventBus;
 
   const mockUsersRepo = (user: UserEntity | null = activeUser): UserRepository => ({
     findById: vi.fn().mockResolvedValue(user),
@@ -53,11 +59,11 @@ describe('CreateAlertHandler', () => {
     getStateName: vi.fn(),
   });
 
-
   it('creates an alert for an active citizen without pending alerts', async () => {
     const usersRepo = mockUsersRepo();
     const alertsRepo = mockAlertsRepo();
-    const handler = new CreateAlertHandler(alertsRepo, usersRepo);
+    const eventBus = mockEventBus();
+    const handler = new CreateAlertHandler(alertsRepo, usersRepo, eventBus);
 
     const command = new CreateAlertCommand(
       'user-1',
@@ -71,13 +77,15 @@ describe('CreateAlertHandler', () => {
     expect(result.id).toBe('alert-1');
     expect(result.userId).toBe('user-1');
     expect(alertsRepo.create).toHaveBeenCalled();
+    expect(eventBus.publish).toHaveBeenCalled();
   });
 
   it('rejects alert creation if user is INHABILITADO', async () => {
     const disabledUser = { ...activeUser, statusAccount: 'INHABILITADO' as const };
     const usersRepo = mockUsersRepo(disabledUser);
     const alertsRepo = mockAlertsRepo();
-    const handler = new CreateAlertHandler(alertsRepo, usersRepo);
+    const eventBus = mockEventBus();
+    const handler = new CreateAlertHandler(alertsRepo, usersRepo, eventBus);
 
     const command = new CreateAlertCommand(
       'user-1',
@@ -95,8 +103,9 @@ describe('CreateAlertHandler', () => {
   it('rejects alert creation if user already has a pending alert', async () => {
     const usersRepo = mockUsersRepo();
     const alertsRepo = mockAlertsRepo();
+    const eventBus = mockEventBus();
     alertsRepo.findPendingByUser = vi.fn().mockResolvedValue({ id: 'existing-pending' } as never);
-    const handler = new CreateAlertHandler(alertsRepo, usersRepo);
+    const handler = new CreateAlertHandler(alertsRepo, usersRepo, eventBus);
 
     const command = new CreateAlertCommand(
       'user-1',
@@ -114,7 +123,8 @@ describe('CreateAlertHandler', () => {
   it('throws NotFoundException if user does not exist', async () => {
     const usersRepo = mockUsersRepo(null);
     const alertsRepo = mockAlertsRepo();
-    const handler = new CreateAlertHandler(alertsRepo, usersRepo);
+    const eventBus = mockEventBus();
+    const handler = new CreateAlertHandler(alertsRepo, usersRepo, eventBus);
 
     const command = new CreateAlertCommand(
       'missing-user',
