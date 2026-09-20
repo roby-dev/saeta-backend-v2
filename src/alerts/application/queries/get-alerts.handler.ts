@@ -14,9 +14,10 @@ export class GetAlertsHandler implements IQueryHandler<GetAlertsQuery, GetAlerts
   ) {}
 
   async execute(query: GetAlertsQuery): Promise<GetAlertsResult> {
+    const isAll = query.all === true;
     const page = Math.max(1, query.page);
-    const limit = Math.max(1, Math.min(100, query.limit));
-    const skip = (page - 1) * limit;
+    const limit = isAll ? undefined : Math.max(1, Math.min(100, query.limit));
+    const skip = isAll ? 0 : (page - 1) * limit!;
 
     const { alerts, total, stateCounts } = await this.alerts.findMany({
       stateId: query.stateId,
@@ -28,9 +29,9 @@ export class GetAlertsHandler implements IQueryHandler<GetAlertsQuery, GetAlerts
     return {
       alerts,
       total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
+      page: isAll ? 1 : page,
+      limit: isAll ? total : limit!,
+      totalPages: isAll ? 1 : Math.max(1, Math.ceil(total / limit!)),
       stateCounts,
     };
   }

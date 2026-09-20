@@ -53,4 +53,36 @@ describe('GetAlertsHandler', () => {
     expect(result.totalPages).toBe(1);
     expect(result.stateCounts).toEqual(mockStateCounts);
   });
+
+  it('returns all alerts without limit when all is true', async () => {
+    const mockRepo = (): AlertRepository => ({
+      findById: vi.fn(),
+      findMany: vi.fn().mockResolvedValue({
+        alerts: mockAlerts,
+        total: 1,
+      }),
+      findByUser: vi.fn(),
+      findByAttendedUser: vi.fn(),
+      findPendingByUser: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      deletePending: vi.fn(),
+      getDefaultPendingStateId: vi.fn(),
+    });
+
+    const repo = mockRepo();
+    const handler = new GetAlertsHandler(repo);
+
+    const result = await handler.execute(new GetAlertsQuery(1, 20, undefined, undefined, true));
+
+    expect(repo.findMany).toHaveBeenCalledWith({
+      stateId: undefined,
+      typeId: undefined,
+      skip: 0,
+      limit: undefined,
+    });
+    expect(result.alerts).toHaveLength(1);
+    expect(result.page).toBe(1);
+    expect(result.totalPages).toBe(1);
+  });
 });

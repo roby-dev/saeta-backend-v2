@@ -49,7 +49,7 @@ export class AlertsController {
     @Query() query: GetAlertsQueryDto,
   ): Promise<{ ok: boolean } & GetAlertsResult> {
     const result: GetAlertsResult = await this.queryBus.execute(
-      new GetAlertsQuery(query.page, query.limit, query.stateId, query.typeId),
+      new GetAlertsQuery(query.page, query.limit, query.stateId, query.typeId, query.all),
     );
     return { ok: true, ...result };
   }

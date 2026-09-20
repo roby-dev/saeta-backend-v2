@@ -72,14 +72,18 @@ export class MongooseAlertRepository implements AlertRepository {
     }
 
     const skip = filter.skip ?? 0;
-    const limit = filter.limit ?? 20;
+    const limit = filter.limit;
+
+    let queryBuilder = this.alertModel.find(query).sort({ _id: -1 });
+    if (skip > 0) {
+      queryBuilder = queryBuilder.skip(skip);
+    }
+    if (limit !== undefined && limit > 0) {
+      queryBuilder = queryBuilder.limit(limit);
+    }
 
     const [docs, total, alertsByStateAgg, statesList] = await Promise.all([
-      this.alertModel
-        .find(query)
-        .sort({ _id: -1 })
-        .skip(skip)
-        .limit(limit)
+      queryBuilder
         .populate<{ id_user: PopulatedUser }>('id_user', 'name lastname DNI image role email phone')
         .populate<{ attendedBy?: PopulatedUser }>(
           'attendedBy',

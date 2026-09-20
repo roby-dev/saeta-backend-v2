@@ -17,5 +17,6 @@ export class GetAlertsQuery {
     public readonly limit: number = 20,
     public readonly stateId?: string,
     public readonly typeId?: string,
+    public readonly all?: boolean,
   ) {}
 }
