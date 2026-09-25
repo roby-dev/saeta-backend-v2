@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { QueryBus } from '@nestjs/cqrs';
 import { JwtService } from '@nestjs/jwt';
 import {
   type OnGatewayConnection,
@@ -11,6 +12,8 @@ import {
 import type { Server, Socket } from 'socket.io';
 import type { AlertEntity } from '../../../alerts/domain/alert.entity.js';
 import type { AccessTokenPayload } from '../../../auth/application/commands/sign-in.command.js';
+import { GetUserByIdQuery } from '../../../users/application/queries/get-user-by-id.query.js';
+import type { UserEntity, UserRole } from '../../../users/domain/user.entity.js';
 
 export interface ConnectedUserSession {
   socketId: string;
@@ -21,6 +24,8 @@ export interface ConnectedUserSession {
 interface RealtimeSocketData {
   userId: string;
   role?: string;
+  name?: string;
+  lastname?: string;
 }
 
 const STAFF_ROLES = ['ADMIN', 'BASE_SEGURIDAD'] as const;
@@ -96,13 +101,16 @@ export class RealtimeGateway
   private readonly connectedUsers = new Map<string, ConnectedUserSession>();
   private readonly activePersonnel = new Set<string>();
 
-  constructor(private readonly jwtService: JwtService) {}
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly queryBus: QueryBus,
+  ) {}
 
   afterInit(_server: Server): void {
     this.logger.log('RealtimeGateway initialized - WebSockets listening');
   }
 
-  handleConnection(client: Socket): void {
+  async handleConnection(client: Socket): Promise<void> {
     const session = this.authenticate(client);
 
     if (!session) {
@@ -112,6 +120,15 @@ export class RealtimeGateway
     }
 
     const data: RealtimeSocketData = { userId: session.userId, role: session.role };
+
+    if (session.role === 'PERSONAL_SEGURIDAD') {
+      const profile = await this.loadPersonnelProfile(session.userId, session.role);
+      if (profile) {
+        data.name = profile.name;
+        data.lastname = profile.lastname;
+      }
+    }
+
     client.data = data;
 
     void client.join(userRoom(session.userId));
@@ -179,6 +196,23 @@ export class RealtimeGateway
     );
   }
 
+  private async loadPersonnelProfile(
+    userId: string,
+    role: string,
+  ): Promise<{ name: string; lastname: string } | undefined> {
+    try {
+      const user = await this.queryBus.execute<GetUserByIdQuery, UserEntity>(
+        new GetUserByIdQuery(userId, userId, role as UserRole),
+      );
+      return { name: user.name, lastname: user.lastname };
+    } catch (error) {
+      this.logger.warn(
+        `Could not load personnel profile for ${userId}: ${(error as Error).message}`,
+      );
+      return undefined;
+    }
+  }
+
   @SubscribeMessage('updateLocation')
   handleUpdateLocation(client: Socket, payload: unknown): void {
     const session = client.data as Partial<RealtimeSocketData>;
@@ -192,7 +226,17 @@ export class RealtimeGateway
       return;
     }
 
-    this.server.to(staffRooms()).emit('updateLocation', { id: session.userId }, coords);
+    const identity: { id: string; name?: string; lastname?: string } = {
+      id: session.userId,
+    };
+    if (session.name) {
+      identity.name = session.name;
+    }
+    if (session.lastname) {
+      identity.lastname = session.lastname;
+    }
+
+    this.server.to(staffRooms()).emit('updateLocation', identity, coords);
   }
 
   @SubscribeMessage('updatePersonalState')
