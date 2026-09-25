@@ -1,6 +1,8 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import type { EventBus } from '@nestjs/cqrs';
 import { describe, expect, it, vi } from 'vitest';
 import type { AccessTokenPayload } from '../../../auth/application/commands/sign-in.command.js';
+import { UserProfileUpdatedEvent } from '../../../users/domain/events/user-profile-updated.event.js';
 import type { UserEntity } from '../../../users/domain/user.entity.js';
 import type { UserRepository } from '../../../users/domain/user.repository.js';
 import type { StorageService, UploadedFile } from '../../domain/storage.service.js';
@@ -65,10 +67,13 @@ describe('UploadAvatarHandler', () => {
     updatePassword: vi.fn(),
   });
 
+  const mockEventBus = (): EventBus => ({ publish: vi.fn() }) as unknown as EventBus;
+
   it('uploads avatar successfully when caller is owner', async () => {
     const storage = mockStorageService();
     const userRepo = mockUserRepository(true);
-    const handler = new UploadAvatarHandler(storage, userRepo);
+    const eventBus = mockEventBus();
+    const handler = new UploadAvatarHandler(storage, userRepo, eventBus);
 
     const currentUser: AccessTokenPayload = {
       sub: 'user-1',
@@ -88,7 +93,8 @@ describe('UploadAvatarHandler', () => {
   it('uploads avatar successfully when caller is admin', async () => {
     const storage = mockStorageService();
     const userRepo = mockUserRepository(true);
-    const handler = new UploadAvatarHandler(storage, userRepo);
+    const eventBus = mockEventBus();
+    const handler = new UploadAvatarHandler(storage, userRepo, eventBus);
 
     const adminUser: AccessTokenPayload = {
       sub: 'admin-id',
@@ -106,7 +112,8 @@ describe('UploadAvatarHandler', () => {
   it('throws ForbiddenException when caller is not owner nor admin', async () => {
     const storage = mockStorageService();
     const userRepo = mockUserRepository(true);
-    const handler = new UploadAvatarHandler(storage, userRepo);
+    const eventBus = mockEventBus();
+    const handler = new UploadAvatarHandler(storage, userRepo, eventBus);
 
     const otherUser: AccessTokenPayload = {
       sub: 'other-user',
@@ -117,12 +124,14 @@ describe('UploadAvatarHandler', () => {
     const command = new UploadAvatarCommand('user-1', mockFile(), otherUser);
     await expect(handler.execute(command)).rejects.toThrow(ForbiddenException);
     expect(storage.upload).not.toHaveBeenCalled();
+    expect(eventBus.publish).not.toHaveBeenCalled();
   });
 
   it('throws NotFoundException when user does not exist', async () => {
     const storage = mockStorageService();
     const userRepo = mockUserRepository(false);
-    const handler = new UploadAvatarHandler(storage, userRepo);
+    const eventBus = mockEventBus();
+    const handler = new UploadAvatarHandler(storage, userRepo, eventBus);
 
     const currentUser: AccessTokenPayload = {
       sub: 'user-nonexistent',
@@ -137,7 +146,8 @@ describe('UploadAvatarHandler', () => {
   it('throws BadRequestException when extension is not allowed', async () => {
     const storage = mockStorageService();
     const userRepo = mockUserRepository(true);
-    const handler = new UploadAvatarHandler(storage, userRepo);
+    const eventBus = mockEventBus();
+    const handler = new UploadAvatarHandler(storage, userRepo, eventBus);
 
     const currentUser: AccessTokenPayload = {
       sub: 'user-1',
@@ -148,5 +158,24 @@ describe('UploadAvatarHandler', () => {
     const command = new UploadAvatarCommand('user-1', mockFile('malicious.exe'), currentUser);
     await expect(handler.execute(command)).rejects.toThrow(BadRequestException);
     expect(storage.upload).not.toHaveBeenCalled();
+    expect(eventBus.publish).not.toHaveBeenCalled();
+  });
+
+  it('publishes UserProfileUpdatedEvent with the updated user after a successful upload', async () => {
+    const storage = mockStorageService();
+    const userRepo = mockUserRepository(true);
+    const eventBus = mockEventBus();
+    const handler = new UploadAvatarHandler(storage, userRepo, eventBus);
+
+    const currentUser: AccessTokenPayload = {
+      sub: 'user-1',
+      email: 'juan@example.com',
+      role: 'CIUDADANO',
+    };
+
+    const command = new UploadAvatarCommand('user-1', mockFile('avatar.jpg'), currentUser);
+    const result = await handler.execute(command);
+
+    expect(eventBus.publish).toHaveBeenCalledWith(new UserProfileUpdatedEvent(result));
   });
 });

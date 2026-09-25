@@ -441,4 +441,46 @@ describe('RealtimeGateway', () => {
       expect(mockServer.emit).not.toHaveBeenCalled();
     });
   });
+
+  describe('emitUserProfileUpdated', () => {
+    const baseUser: UserEntity = {
+      id: 'user-c',
+      name: 'Ana',
+      lastname: 'Gomez',
+      dni: '11223344',
+      phone: '988776655',
+      email: 'ana@saeta.test',
+      role: 'CIUDADANO',
+      statusAccount: 'HABILITADO',
+      image: 'avatar.png',
+      emergencyContacts: [{ name: 'Mom', phone: '999888777' }],
+      availability: undefined,
+    };
+
+    it('emits updatedProfile only to the owning user room', () => {
+      gateway.emitUserProfileUpdated(baseUser);
+
+      expect(mockServer.to).toHaveBeenCalledWith('user:user-c');
+      expect(toEmit).toHaveBeenCalledWith('updatedProfile', expect.objectContaining({
+        id: 'user-c',
+        name: 'Ana',
+        lastname: 'Gomez',
+        image: 'avatar.png',
+        emergencyContacts: [{ name: 'Mom', phone: '999888777' }],
+      }));
+      expect(mockServer.emit).not.toHaveBeenCalled();
+    });
+
+    it('never includes a passwordHash even if present on the source object', () => {
+      const userWithLeakedHash = {
+        ...baseUser,
+        passwordHash: 'super-secret-hash',
+      } as UserEntity & { passwordHash: string };
+
+      gateway.emitUserProfileUpdated(userWithLeakedHash);
+
+      const [, emittedUser] = toEmit.mock.calls[0] as [string, Record<string, unknown>];
+      expect(emittedUser.passwordHash).toBeUndefined();
+    });
+  });
 });

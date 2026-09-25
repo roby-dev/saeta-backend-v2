@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { CommandHandler, EventBus, type ICommandHandler } from '@nestjs/cqrs';
 import { UserDisabledEvent } from '../../domain/events/user-disabled.event.js';
+import { UserProfileUpdatedEvent } from '../../domain/events/user-profile-updated.event.js';
 import type { UserEntity, UserRole } from '../../domain/user.entity.js';
 import {
   USER_REPOSITORY,
@@ -67,10 +68,30 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand, Use
       throw new NotFoundException('User not found');
     }
 
-    if (existingUser.statusAccount !== 'INHABILITADO' && updated.statusAccount === 'INHABILITADO') {
+    const justDisabled =
+      existingUser.statusAccount !== 'INHABILITADO' && updated.statusAccount === 'INHABILITADO';
+
+    if (justDisabled) {
+      // Disabling force-disconnects the user's sockets right after; a redundant profile
+      // broadcast just before that teardown would be noise, so UserDisabledEvent alone is the
+      // authoritative signal for this transition.
       this.eventBus.publish(new UserDisabledEvent(updated.id));
+    } else if (hasVisibleProfileChange(existingUser, updatePayload)) {
+      this.eventBus.publish(new UserProfileUpdatedEvent(updated));
     }
 
     return updated;
   }
+}
+
+// True when at least one field actually applied to the repository update differs from the
+// value the user already had, so a no-op resubmission (e.g. re-sending an unchanged form)
+// does not trigger a spurious realtime broadcast.
+function hasVisibleProfileChange(
+  existingUser: UserEntity,
+  updatePayload: Partial<UserEntity>,
+): boolean {
+  return (Object.keys(updatePayload) as (keyof UserEntity)[]).some(
+    (key) => JSON.stringify(updatePayload[key]) !== JSON.stringify(existingUser[key]),
+  );
 }

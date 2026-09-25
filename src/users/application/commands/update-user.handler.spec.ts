@@ -7,6 +7,7 @@ import {
 import type { EventBus } from '@nestjs/cqrs';
 import { describe, expect, it, vi } from 'vitest';
 import { UserDisabledEvent } from '../../domain/events/user-disabled.event.js';
+import { UserProfileUpdatedEvent } from '../../domain/events/user-profile-updated.event.js';
 import type { UserEntity } from '../../domain/user.entity.js';
 import type { UserRepository } from '../../domain/user.repository.js';
 import { UpdateUserCommand } from './update-user.command.js';
@@ -240,6 +241,54 @@ describe('UpdateUserHandler', () => {
     const handler = new UpdateUserHandler(repo, eventBus);
 
     await handler.execute(new UpdateUserCommand('target-user-id', 'admin-id', 'ADMIN', { name: 'Luigi' }));
+
+    expect(eventBus.publish).not.toHaveBeenCalledWith(expect.any(UserDisabledEvent));
+  });
+
+  it('publishes UserProfileUpdatedEvent when visible profile data changes', async () => {
+    const repo = mockRepo();
+    const eventBus = mockEventBus();
+    const handler = new UpdateUserHandler(repo, eventBus);
+
+    const result = await handler.execute(
+      new UpdateUserCommand('target-user-id', 'target-user-id', 'CIUDADANO', { name: 'Luigi' }),
+    );
+
+    expect(eventBus.publish).toHaveBeenCalledWith(new UserProfileUpdatedEvent(result));
+  });
+
+  it('publishes UserProfileUpdatedEvent when an admin re-enables a disabled account', async () => {
+    const repo = mockRepo();
+    vi.mocked(repo.findById).mockResolvedValue({ ...existingUser, statusAccount: 'INHABILITADO' });
+    const eventBus = mockEventBus();
+    const handler = new UpdateUserHandler(repo, eventBus);
+
+    const result = await handler.execute(
+      new UpdateUserCommand('target-user-id', 'admin-id', 'ADMIN', { statusAccount: 'HABILITADO' }),
+    );
+
+    expect(eventBus.publish).toHaveBeenCalledWith(new UserProfileUpdatedEvent(result));
+  });
+
+  it('does not publish UserProfileUpdatedEvent when only disabling the account', async () => {
+    const repo = mockRepo();
+    const eventBus = mockEventBus();
+    const handler = new UpdateUserHandler(repo, eventBus);
+
+    await handler.execute(
+      new UpdateUserCommand('target-user-id', 'admin-id', 'ADMIN', { statusAccount: 'INHABILITADO' }),
+    );
+
+    expect(eventBus.publish).toHaveBeenCalledTimes(1);
+    expect(eventBus.publish).toHaveBeenCalledWith(new UserDisabledEvent('target-user-id'));
+  });
+
+  it('does not publish UserProfileUpdatedEvent when no field is actually applied', async () => {
+    const repo = mockRepo();
+    const eventBus = mockEventBus();
+    const handler = new UpdateUserHandler(repo, eventBus);
+
+    await handler.execute(new UpdateUserCommand('target-user-id', 'target-user-id', 'CIUDADANO', {}));
 
     expect(eventBus.publish).not.toHaveBeenCalled();
   });

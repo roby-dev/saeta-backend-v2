@@ -75,6 +75,29 @@ function parseCoordinates(payload: unknown): [number, number] | undefined {
   return undefined;
 }
 
+// Whitelist of known-safe UserEntity fields for realtime broadcast. Explicit picking (rather
+// than a generic object spread) is defense-in-depth against passwordHash or any other
+// unexpected field ever reaching a client, even though UserEntity itself carries no password.
+function sanitizeUserForBroadcast(user: UserEntity): UserEntity {
+  return {
+    id: user.id,
+    name: user.name,
+    lastname: user.lastname,
+    dni: user.dni,
+    phone: user.phone,
+    email: user.email,
+    role: user.role,
+    statusAccount: user.statusAccount,
+    image: user.image,
+    emergencyContacts: user.emergencyContacts,
+    averageScore: user.averageScore,
+    alertsAttended: user.alertsAttended,
+    availability: user.availability,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+  };
+}
+
 function parseAvailability(payload: unknown): string | undefined {
   if (payload !== null && typeof payload === 'object' && 'availability' in payload) {
     const value = (payload as { availability: unknown }).availability;
@@ -280,6 +303,11 @@ export class RealtimeGateway
     const room = userRoom(userId);
     this.server.to(room).emit('disableUser', 'Su cuenta ha sido deshabilitada');
     this.server.in(room).disconnectSockets(true);
+  }
+
+  emitUserProfileUpdated(user: UserEntity): void {
+    this.logger.log(`Emitting updatedProfile for user #${user.id}`);
+    this.server.to(userRoom(user.id)).emit('updatedProfile', sanitizeUserForBroadcast(user));
   }
 
   getActivePersonnel(): string[] {

@@ -105,20 +105,56 @@ implementation, citizen-app repo changes (different agent/repo).
 - Commit: `feat(realtime): enrich personnel identity from DB on connect` (see final report for hash).
 
 ### B2 — `updatedProfile` realtime event
-- TDD: strict, RED confirmed first, then GREEN.
-- Files: `src/users/domain/events/user-profile-updated.event.ts`,
-  `src/users/application/commands/update-user.handler.ts` (+ spec),
-  `src/uploads/application/commands/upload-avatar.handler.ts` (+ spec),
-  `src/realtime/application/handlers/user-realtime.handler.ts` (+ spec),
-  `src/realtime/presentation/gateways/realtime.gateway.ts` (+ spec).
-- Decision: password change does not publish `UserProfileUpdatedEvent` (no visible profile
-  field changes). `statusAccount → INHABILITADO` alone does not additionally publish
-  `UserProfileUpdatedEvent` (the account is about to be force-disconnected; `UserDisabledEvent`
-  is the authoritative signal). Every other successful update that changes at least one
-  repository-applied field (including `statusAccount → HABILITADO`) publishes it.
+- TDD: strict, RED confirmed first at each step (gateway + handler: 3 failing / 156 passing;
+  `UpdateUserHandler`: 2 failing; `UploadAvatarHandler`: 1 failing), then GREEN (full suite →
+  164 passed, 37 files).
+- Implementation:
+  - `src/users/domain/events/user-profile-updated.event.ts` (new): `UserProfileUpdatedEvent`
+    carries the full `UserEntity` (never `UserWithPassword`).
+  - `RealtimeGateway.emitUserProfileUpdated(user)` emits `updatedProfile` to `user:{id}` only,
+    through a new `sanitizeUserForBroadcast()` whitelist (explicit field picking, defense in
+    depth against any accidental extra field such as `passwordHash` even though `UserEntity`
+    itself never carries one).
+  - `UserRealtimeHandler` now listens for both `UserDisabledEvent` and `UserProfileUpdatedEvent`
+    (`@EventsHandler(UserDisabledEvent, UserProfileUpdatedEvent)`) and dispatches to the
+    matching gateway method.
+  - `UpdateUserHandler`: added `hasVisibleProfileChange(existingUser, updatePayload)` — compares
+    (via `JSON.stringify`) each repository-applied field against its prior value, so a no-op
+    resubmission never fires a spurious broadcast. Publishes `UserProfileUpdatedEvent(updated)`
+    when at least one field actually changed and the update is not the disable transition;
+    `UserDisabledEvent` keeps exclusive ownership of the disable transition (`else if`, not
+    both).
+  - `UploadAvatarHandler` now injects `EventBus` (via `CqrsModule`, already imported by
+    `UploadsModule`) and publishes `UserProfileUpdatedEvent(updatedUser)` after a successful
+    avatar replace; not published on any rejection path (forbidden/not-found/bad-extension).
+- Decision: password change (`ChangePasswordHandler`) does not publish `UserProfileUpdatedEvent`
+  — it changes no field of `UserEntity` (no visible profile data), so there is nothing for
+  `updatedProfile` listeners to react to.
+- Checks: `pnpm test` (full) → 164/164 pass; `pnpm exec tsc --noEmit -p tsconfig.build.json` →
+  clean; `pnpm lint` on touched files → clean (same pre-existing unrelated dashboard warning).
+- Commit: `feat(users,uploads,realtime): broadcast updatedProfile on visible profile changes`
+  (see final report for hash).
 
 ### B3 — Citizen profile API contract audit
 - Findings and the citizen-facing contract table are recorded below after the audit.
+
+## Event contract (server → client) after this change
+
+| Event | Room / audience | Payload |
+|---|---|---|
+| `sendAlert` | `role:ADMIN`, `role:BASE_SEGURIDAD` | `AlertEntity` |
+| `updatedAlert` | `role:ADMIN`, `role:BASE_SEGURIDAD`, and `user:{alert.userId}` | `AlertEntity` |
+| `delegateAlert` | `user:{alert.attendedById}` | `AlertEntity` |
+| `disableUser` | `user:{userId}` (then that room is force-disconnected) | `'Su cuenta ha sido deshabilitada'` |
+| `updatedProfile` (new) | `user:{userId}` only | sanitized `UserEntity` (no `passwordHash`/unknown fields) |
+| `personalConnected` | `role:ADMIN`, `role:BASE_SEGURIDAD` | `userId: string` (unchanged — no consumer reads a name from it) |
+| `personalDisconnected` | `role:ADMIN`, `role:BASE_SEGURIDAD` | `userId: string` |
+| `updateLocation` | `role:ADMIN`, `role:BASE_SEGURIDAD` | `{ id: string, name?: string, lastname?: string }, [lat: number, lng: number]` (name/lastname new, DB-sourced) |
+| `updatePersonalState` | `role:ADMIN`, `role:BASE_SEGURIDAD` | `{ id: string, availability: string }` |
+
+`updatedProfile` fires when `UpdateUserHandler` changes at least one visible profile field
+(not just disabling) or when `UploadAvatarHandler` replaces the avatar. It does not fire for
+password changes or for the disable transition (which keeps `disableUser` as its only signal).
 
 ## Citizen profile API contract (for the Flutter team)
 
