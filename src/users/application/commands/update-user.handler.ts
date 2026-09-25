@@ -5,7 +5,8 @@ import {
   Inject,
   NotFoundException,
 } from '@nestjs/common';
-import { CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
+import { CommandHandler, EventBus, type ICommandHandler } from '@nestjs/cqrs';
+import { UserDisabledEvent } from '../../domain/events/user-disabled.event.js';
 import type { UserEntity, UserRole } from '../../domain/user.entity.js';
 import {
   USER_REPOSITORY,
@@ -18,6 +19,7 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand, Use
   constructor(
     @Inject(USER_REPOSITORY)
     private readonly users: UserRepository,
+    private readonly eventBus: EventBus,
   ) {}
 
   async execute(command: UpdateUserCommand): Promise<UserEntity> {
@@ -63,6 +65,10 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand, Use
     const updated = await this.users.update(command.targetUserId, updatePayload);
     if (!updated) {
       throw new NotFoundException('User not found');
+    }
+
+    if (existingUser.statusAccount !== 'INHABILITADO' && updated.statusAccount === 'INHABILITADO') {
+      this.eventBus.publish(new UserDisabledEvent(updated.id));
     }
 
     return updated;

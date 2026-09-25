@@ -4,7 +4,9 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import type { EventBus } from '@nestjs/cqrs';
 import { describe, expect, it, vi } from 'vitest';
+import { UserDisabledEvent } from '../../domain/events/user-disabled.event.js';
 import type { UserEntity } from '../../domain/user.entity.js';
 import type { UserRepository } from '../../domain/user.repository.js';
 import { UpdateUserCommand } from './update-user.command.js';
@@ -37,9 +39,11 @@ describe('UpdateUserHandler', () => {
     updatePassword: vi.fn(),
   });
 
+  const mockEventBus = () => ({ publish: vi.fn() }) as unknown as EventBus;
+
   it('allows self to update own profile', async () => {
     const repo = mockRepo();
-    const handler = new UpdateUserHandler(repo);
+    const handler = new UpdateUserHandler(repo, mockEventBus());
 
     const command = new UpdateUserCommand(
       'target-user-id',
@@ -57,7 +61,7 @@ describe('UpdateUserHandler', () => {
 
   it('forbids other non-privileged user from updating someone else', async () => {
     const repo = mockRepo();
-    const handler = new UpdateUserHandler(repo);
+    const handler = new UpdateUserHandler(repo, mockEventBus());
 
     const command = new UpdateUserCommand(
       'target-user-id',
@@ -73,7 +77,7 @@ describe('UpdateUserHandler', () => {
 
   it('allows ADMIN to update any user and change statusAccount', async () => {
     const repo = mockRepo();
-    const handler = new UpdateUserHandler(repo);
+    const handler = new UpdateUserHandler(repo, mockEventBus());
 
     const command = new UpdateUserCommand(
       'target-user-id',
@@ -88,7 +92,7 @@ describe('UpdateUserHandler', () => {
 
   it('strips statusAccount modification when self updates without privileges', async () => {
     const repo = mockRepo();
-    const handler = new UpdateUserHandler(repo);
+    const handler = new UpdateUserHandler(repo, mockEventBus());
 
     const command = new UpdateUserCommand(
       'target-user-id',
@@ -103,7 +107,7 @@ describe('UpdateUserHandler', () => {
 
   it('rejects update if emergency contacts exceed 5', async () => {
     const repo = mockRepo();
-    const handler = new UpdateUserHandler(repo);
+    const handler = new UpdateUserHandler(repo, mockEventBus());
 
     const command = new UpdateUserCommand(
       'target-user-id',
@@ -129,7 +133,7 @@ describe('UpdateUserHandler', () => {
   it('rejects email update if email is taken by another user', async () => {
     const repo = mockRepo();
     repo.findByEmail = vi.fn().mockResolvedValue({ id: 'someone-else' } as never);
-    const handler = new UpdateUserHandler(repo);
+    const handler = new UpdateUserHandler(repo, mockEventBus());
 
     const command = new UpdateUserCommand(
       'target-user-id',
@@ -146,7 +150,7 @@ describe('UpdateUserHandler', () => {
   it('rejects phone update if phone is taken by another non-admin user', async () => {
     const repo = mockRepo();
     repo.findByPhone = vi.fn().mockResolvedValue({ id: 'someone-else', role: 'CIUDADANO' } as never);
-    const handler = new UpdateUserHandler(repo);
+    const handler = new UpdateUserHandler(repo, mockEventBus());
 
     const command = new UpdateUserCommand(
       'target-user-id',
@@ -163,7 +167,7 @@ describe('UpdateUserHandler', () => {
   it('allows phone update if phone is associated with an ADMIN user', async () => {
     const repo = mockRepo();
     repo.findByPhone = vi.fn().mockResolvedValue({ id: 'admin-user-id', role: 'ADMIN' } as never);
-    const handler = new UpdateUserHandler(repo);
+    const handler = new UpdateUserHandler(repo, mockEventBus());
 
     const command = new UpdateUserCommand(
       'target-user-id',
@@ -179,7 +183,7 @@ describe('UpdateUserHandler', () => {
   it('throws NotFoundException when user does not exist', async () => {
     const repo = mockRepo();
     repo.findById = vi.fn().mockResolvedValue(null);
-    const handler = new UpdateUserHandler(repo);
+    const handler = new UpdateUserHandler(repo, mockEventBus());
 
     const command = new UpdateUserCommand(
       'missing-user-id',
@@ -191,5 +195,52 @@ describe('UpdateUserHandler', () => {
     await expect(handler.execute(command)).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+
+  it('publishes UserDisabledEvent when a privileged user disables an enabled account', async () => {
+    const repo = mockRepo();
+    const eventBus = mockEventBus();
+    const handler = new UpdateUserHandler(repo, eventBus);
+
+    await handler.execute(
+      new UpdateUserCommand('target-user-id', 'admin-id', 'ADMIN', { statusAccount: 'INHABILITADO' }),
+    );
+
+    expect(eventBus.publish).toHaveBeenCalledWith(new UserDisabledEvent('target-user-id'));
+  });
+
+  it('does not publish UserDisabledEvent when the account was already disabled', async () => {
+    const repo = mockRepo();
+    vi.mocked(repo.findById).mockResolvedValue({ ...existingUser, statusAccount: 'INHABILITADO' });
+    const eventBus = mockEventBus();
+    const handler = new UpdateUserHandler(repo, eventBus);
+
+    await handler.execute(
+      new UpdateUserCommand('target-user-id', 'admin-id', 'ADMIN', { statusAccount: 'INHABILITADO' }),
+    );
+
+    expect(eventBus.publish).not.toHaveBeenCalled();
+  });
+
+  it('does not publish UserDisabledEvent when a citizen tries to disable their own account', async () => {
+    const repo = mockRepo();
+    const eventBus = mockEventBus();
+    const handler = new UpdateUserHandler(repo, eventBus);
+
+    await handler.execute(
+      new UpdateUserCommand('target-user-id', 'target-user-id', 'CIUDADANO', { statusAccount: 'INHABILITADO' }),
+    );
+
+    expect(eventBus.publish).not.toHaveBeenCalled();
+  });
+
+  it('does not publish UserDisabledEvent for updates that keep the account enabled', async () => {
+    const repo = mockRepo();
+    const eventBus = mockEventBus();
+    const handler = new UpdateUserHandler(repo, eventBus);
+
+    await handler.execute(new UpdateUserCommand('target-user-id', 'admin-id', 'ADMIN', { name: 'Luigi' }));
+
+    expect(eventBus.publish).not.toHaveBeenCalled();
   });
 });

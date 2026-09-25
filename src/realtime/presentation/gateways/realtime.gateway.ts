@@ -10,6 +10,7 @@ import {
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 import type { AlertEntity } from '../../../alerts/domain/alert.entity.js';
+import type { AccessTokenPayload } from '../../../auth/application/commands/sign-in.command.js';
 
 export interface ConnectedUserSession {
   socketId: string;
@@ -17,9 +18,72 @@ export interface ConnectedUserSession {
   role?: string;
 }
 
+interface RealtimeSocketData {
+  userId: string;
+  role?: string;
+}
+
+const STAFF_ROLES = ['ADMIN', 'BASE_SEGURIDAD'] as const;
+
+function userRoom(userId: string): string {
+  return `user:${userId}`;
+}
+
+function roleRoom(role: string): string {
+  return `role:${role}`;
+}
+
+function staffRooms(): string[] {
+  return STAFF_ROLES.map(roleRoom);
+}
+
+export function resolveCorsOrigin(): string[] | boolean {
+  const raw = process.env.CORS_ORIGIN ?? '*';
+  return raw === '*' ? true : raw.split(',').map((origin) => origin.trim());
+}
+
+function parseCoordinates(payload: unknown): [number, number] | undefined {
+  let lat: unknown;
+  let lng: unknown;
+
+  if (Array.isArray(payload)) {
+    [lat, lng] = payload;
+  } else if (payload !== null && typeof payload === 'object') {
+    const p = payload as Record<string, unknown>;
+    lat = p.lat ?? p.latitude;
+    lng = p.lng ?? p.longitude;
+  }
+
+  if (
+    typeof lat === 'number' &&
+    typeof lng === 'number' &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lng >= -180 &&
+    lng <= 180
+  ) {
+    return [lat, lng];
+  }
+
+  return undefined;
+}
+
+function parseAvailability(payload: unknown): string | undefined {
+  if (payload !== null && typeof payload === 'object' && 'availability' in payload) {
+    const value = (payload as { availability: unknown }).availability;
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: resolveCorsOrigin(),
   },
 })
 export class RealtimeGateway
@@ -39,39 +103,32 @@ export class RealtimeGateway
   }
 
   handleConnection(client: Socket): void {
-    const rawToken =
-      (client.handshake.auth?.token as string | undefined) ??
-      (client.handshake.query?.token as string | undefined) ??
-      (client.handshake.headers.authorization?.replace(/^Bearer\s+/i, '') as
-        | string
-        | undefined);
+    const session = this.authenticate(client);
 
-    let userId: string | undefined;
-    let role: string | undefined;
-
-    if (rawToken) {
-      try {
-        const payload = this.jwtService.verify<{ sub: string; role?: string }>(rawToken);
-        userId = payload.sub;
-        role = payload.role;
-      } catch {
-        // Token verification failed; fall back to query id if provided (legacy support)
-      }
+    if (!session) {
+      this.logger.warn(`Rejecting unauthenticated connection [id=${client.id}]`);
+      client.disconnect(true);
+      return;
     }
 
-    if (!userId && client.handshake.query?.id) {
-      userId = String(client.handshake.query.id);
+    const data: RealtimeSocketData = { userId: session.userId, role: session.role };
+    client.data = data;
+
+    void client.join(userRoom(session.userId));
+    if (session.role) {
+      void client.join(roleRoom(session.role));
     }
 
-    if (userId) {
-      this.connectedUsers.set(client.id, { socketId: client.id, userId, role });
+    this.connectedUsers.set(client.id, {
+      socketId: client.id,
+      userId: session.userId,
+      role: session.role,
+    });
 
-      // If personal de seguridad connects (or legacy query.id was supplied)
-      if (role === 'PERSONAL_SEGURIDAD' || client.handshake.query?.id) {
-        this.activePersonnel.add(userId);
-        this.logger.log(`Personal connected: ${userId}`);
-        client.broadcast.emit('personalConnected', userId);
-      }
+    if (session.role === 'PERSONAL_SEGURIDAD') {
+      this.activePersonnel.add(session.userId);
+      this.logger.log(`Personal connected: ${session.userId}`);
+      this.server.to(staffRooms()).emit('personalConnected', session.userId);
     }
 
     this.logger.log(`Client connected [id=${client.id}] (total: ${this.connectedUsers.size})`);
@@ -85,59 +142,100 @@ export class RealtimeGateway
       if (this.activePersonnel.has(session.userId)) {
         this.activePersonnel.delete(session.userId);
         this.logger.log(`Personal disconnected: ${session.userId}`);
-        this.server.emit('personalDisconnected', session.userId);
+        this.server.to(staffRooms()).emit('personalDisconnected', session.userId);
       }
     }
 
     this.logger.log(`Client disconnected [id=${client.id}]`);
   }
 
+  private authenticate(client: Socket): { userId: string; role?: string } | undefined {
+    const rawToken = this.extractToken(client);
+    if (!rawToken) {
+      return undefined;
+    }
+
+    try {
+      const payload = this.jwtService.verify<AccessTokenPayload>(rawToken);
+      if ((payload as { tokenType?: string }).tokenType === 'refresh') {
+        return undefined;
+      }
+      if (!payload?.sub) {
+        return undefined;
+      }
+      return { userId: payload.sub, role: payload.role };
+    } catch {
+      return undefined;
+    }
+  }
+
+  private extractToken(client: Socket): string | undefined {
+    return (
+      (client.handshake.auth?.token as string | undefined) ??
+      (client.handshake.query?.token as string | undefined) ??
+      (client.handshake.headers.authorization?.replace(/^Bearer\s+/i, '') as
+        | string
+        | undefined)
+    );
+  }
+
   @SubscribeMessage('updateLocation')
   handleUpdateLocation(client: Socket, payload: unknown): void {
-    // Supports legacy: (user, latLng) or object payload { user, latLng }
-    if (Array.isArray(payload)) {
-      const [user, latLng] = payload;
-      client.broadcast.emit('updateLocation', user, latLng);
-    } else if (typeof payload === 'object' && payload !== null && 'user' in payload) {
-      const p = payload as { user: unknown; latLng?: unknown; location?: unknown };
-      const coords = p.latLng ?? p.location;
-      client.broadcast.emit('updateLocation', p.user, coords);
-    } else {
-      client.broadcast.emit('updateLocation', payload);
+    const session = client.data as Partial<RealtimeSocketData>;
+    if (session?.role !== 'PERSONAL_SEGURIDAD' || !session.userId) {
+      return;
     }
+
+    const coords = parseCoordinates(payload);
+    if (!coords) {
+      this.logger.warn(`Ignoring invalid updateLocation payload from ${session.userId}`);
+      return;
+    }
+
+    this.server.to(staffRooms()).emit('updateLocation', { id: session.userId }, coords);
   }
 
   @SubscribeMessage('updatePersonalState')
   handleUpdatePersonalState(client: Socket, payload: unknown): void {
-    client.broadcast.emit('updatePersonalState', payload);
-  }
+    const session = client.data as Partial<RealtimeSocketData>;
+    if (session?.role !== 'PERSONAL_SEGURIDAD' || !session.userId) {
+      return;
+    }
 
-  @SubscribeMessage('updatedAlert')
-  handleClientUpdatedAlert(client: Socket, payload: unknown): void {
-    client.broadcast.emit('updatedAlert', payload);
+    const availability = parseAvailability(payload);
+    if (!availability) {
+      this.logger.warn(`Ignoring invalid updatePersonalState payload from ${session.userId}`);
+      return;
+    }
+
+    this.server
+      .to(staffRooms())
+      .emit('updatePersonalState', { id: session.userId, availability });
   }
 
   emitAlertCreated(alert: AlertEntity): void {
     this.logger.log(`Emitting sendAlert for alert #${alert.id}`);
-    this.server.emit('sendAlert', alert);
+    this.server.to(staffRooms()).emit('sendAlert', alert);
   }
 
   emitAlertUpdated(alert: AlertEntity): void {
     this.logger.log(`Emitting updatedAlert for alert #${alert.id}`);
-    this.server.emit('updatedAlert', alert);
+    this.server.to(staffRooms()).emit('updatedAlert', alert);
 
     if (alert.userId) {
-      this.server.emit(`updatedAlert-${alert.userId}`, alert);
+      this.server.to(userRoom(alert.userId)).emit('updatedAlert', alert);
     }
 
     if (alert.attendedById) {
-      this.server.emit(`delegateAlert-${alert.attendedById}`, alert);
+      this.server.to(userRoom(alert.attendedById)).emit('delegateAlert', alert);
     }
   }
 
   emitUserDisabled(userId: string): void {
     this.logger.log(`Emitting disableUser for user #${userId}`);
-    this.server.emit(`disableUser-${userId}`, 'Su cuenta ha sido deshabilitada');
+    const room = userRoom(userId);
+    this.server.to(room).emit('disableUser', 'Su cuenta ha sido deshabilitada');
+    this.server.in(room).disconnectSockets(true);
   }
 
   getActivePersonnel(): string[] {
