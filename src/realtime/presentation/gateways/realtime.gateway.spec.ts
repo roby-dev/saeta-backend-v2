@@ -8,6 +8,8 @@ describe('RealtimeGateway', () => {
   let gateway: RealtimeGateway;
   let jwtService: JwtService;
   let mockServer: Partial<Server>;
+  let toEmit: ReturnType<typeof vi.fn>;
+  let disconnectSockets: ReturnType<typeof vi.fn>;
   let mockClient: Partial<Socket>;
 
   beforeEach(() => {
@@ -17,13 +19,18 @@ describe('RealtimeGateway', () => {
 
     gateway = new RealtimeGateway(jwtService);
 
+    toEmit = vi.fn();
+    disconnectSockets = vi.fn();
     mockServer = {
       emit: vi.fn(),
+      to: vi.fn().mockReturnValue({ emit: toEmit }),
+      in: vi.fn().mockReturnValue({ disconnectSockets }),
     };
     gateway.server = mockServer as Server;
 
     mockClient = {
       id: 'socket-123',
+      data: {},
       handshake: {
         auth: {},
         query: {},
@@ -35,49 +42,135 @@ describe('RealtimeGateway', () => {
         issued: 0,
         url: '',
       },
+      join: vi.fn(),
+      disconnect: vi.fn(),
       broadcast: {
         emit: vi.fn(),
       } as unknown as Socket['broadcast'],
     };
   });
 
-  it('handles connection with JWT token for security personnel', () => {
-    mockClient.handshake!.auth = { token: 'valid-jwt-token' };
-    (jwtService.verify as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
-      sub: 'user-sec-1',
-      role: 'PERSONAL_SEGURIDAD',
+  describe('handleConnection', () => {
+    it('disconnects a socket with no token', () => {
+      gateway.handleConnection(mockClient as Socket);
+
+      expect(mockClient.disconnect).toHaveBeenCalledWith(true);
+      expect(mockClient.join).not.toHaveBeenCalled();
+      expect(gateway.getActivePersonnel()).toHaveLength(0);
     });
 
-    gateway.handleConnection(mockClient as Socket);
+    it('disconnects a socket whose token fails verification', () => {
+      mockClient.handshake!.auth = { token: 'bad-token' };
+      (jwtService.verify as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => {
+        throw new Error('invalid signature');
+      });
 
-    expect(mockClient.broadcast!.emit).toHaveBeenCalledWith(
-      'personalConnected',
-      'user-sec-1',
-    );
-    expect(gateway.getActivePersonnel()).toContain('user-sec-1');
+      gateway.handleConnection(mockClient as Socket);
+
+      expect(mockClient.disconnect).toHaveBeenCalledWith(true);
+      expect(mockClient.join).not.toHaveBeenCalled();
+    });
+
+    it('disconnects a socket presenting a refresh token', () => {
+      mockClient.handshake!.auth = { token: 'refresh-token' };
+      (jwtService.verify as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        sub: 'user-1',
+        role: 'CIUDADANO',
+        tokenType: 'refresh',
+      });
+
+      gateway.handleConnection(mockClient as Socket);
+
+      expect(mockClient.disconnect).toHaveBeenCalledWith(true);
+      expect(mockClient.join).not.toHaveBeenCalled();
+    });
+
+    it('ignores legacy query.id and disconnects when no token is present', () => {
+      mockClient.handshake!.query = { id: 'legacy-user-2' };
+
+      gateway.handleConnection(mockClient as Socket);
+
+      expect(jwtService.verify).not.toHaveBeenCalled();
+      expect(mockClient.disconnect).toHaveBeenCalledWith(true);
+      expect(gateway.getActivePersonnel()).not.toContain('legacy-user-2');
+    });
+
+    it('authenticates a citizen socket and joins user/role rooms without personnel presence', () => {
+      mockClient.handshake!.auth = { token: 'valid-jwt-token' };
+      (jwtService.verify as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        sub: 'user-c-1',
+        role: 'CIUDADANO',
+      });
+
+      gateway.handleConnection(mockClient as Socket);
+
+      expect(mockClient.disconnect).not.toHaveBeenCalled();
+      expect(mockClient.join).toHaveBeenCalledWith('user:user-c-1');
+      expect(mockClient.join).toHaveBeenCalledWith('role:CIUDADANO');
+      expect(mockClient.data).toEqual({ userId: 'user-c-1', role: 'CIUDADANO' });
+      expect(mockServer.to).not.toHaveBeenCalled();
+      expect(gateway.getActivePersonnel()).toHaveLength(0);
+    });
+
+    it('authenticates security personnel, joins rooms, and announces presence to staff rooms', () => {
+      mockClient.handshake!.auth = { token: 'valid-jwt-token' };
+      (jwtService.verify as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        sub: 'user-sec-1',
+        role: 'PERSONAL_SEGURIDAD',
+      });
+
+      gateway.handleConnection(mockClient as Socket);
+
+      expect(mockClient.join).toHaveBeenCalledWith('user:user-sec-1');
+      expect(mockClient.join).toHaveBeenCalledWith('role:PERSONAL_SEGURIDAD');
+      expect(mockServer.to).toHaveBeenCalledWith(['role:ADMIN', 'role:BASE_SEGURIDAD']);
+      expect(toEmit).toHaveBeenCalledWith('personalConnected', 'user-sec-1');
+      expect(gateway.getActivePersonnel()).toContain('user-sec-1');
+    });
+
+    it('accepts a token supplied via handshake.query.token', () => {
+      mockClient.handshake!.query = { token: 'valid-jwt-token' };
+      (jwtService.verify as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        sub: 'user-c-2',
+        role: 'CIUDADANO',
+      });
+
+      gateway.handleConnection(mockClient as Socket);
+
+      expect(mockClient.disconnect).not.toHaveBeenCalled();
+      expect(mockClient.join).toHaveBeenCalledWith('user:user-c-2');
+    });
   });
 
-  it('handles connection with legacy query id', () => {
-    mockClient.handshake!.query = { id: 'legacy-user-2' };
+  describe('handleDisconnect', () => {
+    it('notifies staff rooms when security personnel disconnects', () => {
+      mockClient.handshake!.auth = { token: 'valid-jwt-token' };
+      (jwtService.verify as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        sub: 'user-sec-1',
+        role: 'PERSONAL_SEGURIDAD',
+      });
+      gateway.handleConnection(mockClient as Socket);
 
-    gateway.handleConnection(mockClient as Socket);
+      gateway.handleDisconnect(mockClient as Socket);
 
-    expect(mockClient.broadcast!.emit).toHaveBeenCalledWith(
-      'personalConnected',
-      'legacy-user-2',
-    );
-    expect(gateway.getActivePersonnel()).toContain('legacy-user-2');
-  });
+      expect(mockServer.to).toHaveBeenCalledWith(['role:ADMIN', 'role:BASE_SEGURIDAD']);
+      expect(toEmit).toHaveBeenCalledWith('personalDisconnected', 'user-sec-1');
+      expect(gateway.getActivePersonnel()).not.toContain('user-sec-1');
+    });
 
-  it('handles disconnection and broadcasts personalDisconnected', () => {
-    mockClient.handshake!.query = { id: 'user-3' };
-    gateway.handleConnection(mockClient as Socket);
-    expect(gateway.getActivePersonnel()).toContain('user-3');
+    it('does not announce presence when a citizen socket disconnects', () => {
+      mockClient.handshake!.auth = { token: 'valid-jwt-token' };
+      (jwtService.verify as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+        sub: 'user-c-1',
+        role: 'CIUDADANO',
+      });
+      gateway.handleConnection(mockClient as Socket);
+      (mockServer.to as ReturnType<typeof vi.fn>).mockClear();
 
-    gateway.handleDisconnect(mockClient as Socket);
+      gateway.handleDisconnect(mockClient as Socket);
 
-    expect(mockServer.emit).toHaveBeenCalledWith('personalDisconnected', 'user-3');
-    expect(gateway.getActivePersonnel()).not.toContain('user-3');
+      expect(mockServer.to).not.toHaveBeenCalled();
+    });
   });
 
   it('broadcasts updateLocation when receiving location message', () => {

@@ -10,6 +10,7 @@ import {
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 import type { AlertEntity } from '../../../alerts/domain/alert.entity.js';
+import type { AccessTokenPayload } from '../../../auth/application/commands/sign-in.command.js';
 
 export interface ConnectedUserSession {
   socketId: string;
@@ -17,9 +18,33 @@ export interface ConnectedUserSession {
   role?: string;
 }
 
+interface RealtimeSocketData {
+  userId: string;
+  role?: string;
+}
+
+const STAFF_ROLES = ['ADMIN', 'BASE_SEGURIDAD'] as const;
+
+function userRoom(userId: string): string {
+  return `user:${userId}`;
+}
+
+function roleRoom(role: string): string {
+  return `role:${role}`;
+}
+
+function staffRooms(): string[] {
+  return STAFF_ROLES.map(roleRoom);
+}
+
+export function resolveCorsOrigin(): string[] | boolean {
+  const raw = process.env.CORS_ORIGIN ?? '*';
+  return raw === '*' ? true : raw.split(',').map((origin) => origin.trim());
+}
+
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: resolveCorsOrigin(),
   },
 })
 export class RealtimeGateway
@@ -39,39 +64,32 @@ export class RealtimeGateway
   }
 
   handleConnection(client: Socket): void {
-    const rawToken =
-      (client.handshake.auth?.token as string | undefined) ??
-      (client.handshake.query?.token as string | undefined) ??
-      (client.handshake.headers.authorization?.replace(/^Bearer\s+/i, '') as
-        | string
-        | undefined);
+    const session = this.authenticate(client);
 
-    let userId: string | undefined;
-    let role: string | undefined;
-
-    if (rawToken) {
-      try {
-        const payload = this.jwtService.verify<{ sub: string; role?: string }>(rawToken);
-        userId = payload.sub;
-        role = payload.role;
-      } catch {
-        // Token verification failed; fall back to query id if provided (legacy support)
-      }
+    if (!session) {
+      this.logger.warn(`Rejecting unauthenticated connection [id=${client.id}]`);
+      client.disconnect(true);
+      return;
     }
 
-    if (!userId && client.handshake.query?.id) {
-      userId = String(client.handshake.query.id);
+    const data: RealtimeSocketData = { userId: session.userId, role: session.role };
+    client.data = data;
+
+    void client.join(userRoom(session.userId));
+    if (session.role) {
+      void client.join(roleRoom(session.role));
     }
 
-    if (userId) {
-      this.connectedUsers.set(client.id, { socketId: client.id, userId, role });
+    this.connectedUsers.set(client.id, {
+      socketId: client.id,
+      userId: session.userId,
+      role: session.role,
+    });
 
-      // If personal de seguridad connects (or legacy query.id was supplied)
-      if (role === 'PERSONAL_SEGURIDAD' || client.handshake.query?.id) {
-        this.activePersonnel.add(userId);
-        this.logger.log(`Personal connected: ${userId}`);
-        client.broadcast.emit('personalConnected', userId);
-      }
+    if (session.role === 'PERSONAL_SEGURIDAD') {
+      this.activePersonnel.add(session.userId);
+      this.logger.log(`Personal connected: ${session.userId}`);
+      this.server.to(staffRooms()).emit('personalConnected', session.userId);
     }
 
     this.logger.log(`Client connected [id=${client.id}] (total: ${this.connectedUsers.size})`);
@@ -85,11 +103,41 @@ export class RealtimeGateway
       if (this.activePersonnel.has(session.userId)) {
         this.activePersonnel.delete(session.userId);
         this.logger.log(`Personal disconnected: ${session.userId}`);
-        this.server.emit('personalDisconnected', session.userId);
+        this.server.to(staffRooms()).emit('personalDisconnected', session.userId);
       }
     }
 
     this.logger.log(`Client disconnected [id=${client.id}]`);
+  }
+
+  private authenticate(client: Socket): { userId: string; role?: string } | undefined {
+    const rawToken = this.extractToken(client);
+    if (!rawToken) {
+      return undefined;
+    }
+
+    try {
+      const payload = this.jwtService.verify<AccessTokenPayload>(rawToken);
+      if ((payload as { tokenType?: string }).tokenType === 'refresh') {
+        return undefined;
+      }
+      if (!payload?.sub) {
+        return undefined;
+      }
+      return { userId: payload.sub, role: payload.role };
+    } catch {
+      return undefined;
+    }
+  }
+
+  private extractToken(client: Socket): string | undefined {
+    return (
+      (client.handshake.auth?.token as string | undefined) ??
+      (client.handshake.query?.token as string | undefined) ??
+      (client.handshake.headers.authorization?.replace(/^Bearer\s+/i, '') as
+        | string
+        | undefined)
+    );
   }
 
   @SubscribeMessage('updateLocation')
