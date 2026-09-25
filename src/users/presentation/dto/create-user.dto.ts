@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
@@ -18,10 +18,24 @@ export class EmergencyContactDto {
   @IsNotEmpty()
   name: string;
 
+  @Transform(({ value }) => normalizePeruvianPhone(value))
   @IsString()
   @IsNotEmpty()
   @Matches(/^\d{9}$/, { message: 'Contact phone must be exactly 9 digits' })
   phone: string;
+}
+
+const PERU_COUNTRY_CODE = '51';
+
+// Device contacts often come formatted ("+51 987 654 321", "987-654-321").
+// Strip separators and the Peruvian country code so only the 9-digit number remains.
+function normalizePeruvianPhone(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 11 && digits.startsWith(PERU_COUNTRY_CODE)) {
+    return digits.slice(PERU_COUNTRY_CODE.length);
+  }
+  return digits;
 }
 
 export class CreateUserDto {
