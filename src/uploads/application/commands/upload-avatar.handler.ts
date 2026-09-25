@@ -5,7 +5,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CommandHandler, type ICommandHandler } from '@nestjs/cqrs';
+import { CommandHandler, EventBus, type ICommandHandler } from '@nestjs/cqrs';
+import { UserProfileUpdatedEvent } from '../../../users/domain/events/user-profile-updated.event.js';
 import type { UserEntity } from '../../../users/domain/user.entity.js';
 import {
   USER_REPOSITORY,
@@ -29,6 +30,7 @@ export class UploadAvatarHandler
     private readonly storageService: StorageService,
     @Inject(USER_REPOSITORY)
     private readonly userRepository: UserRepository,
+    private readonly eventBus: EventBus,
   ) {}
 
   async execute(command: UploadAvatarCommand): Promise<UserEntity> {
@@ -74,6 +76,8 @@ export class UploadAvatarHandler
     if (!updatedUser) {
       throw new NotFoundException('Failed to update user avatar');
     }
+
+    this.eventBus.publish(new UserProfileUpdatedEvent(updatedUser));
 
     return updatedUser;
   }

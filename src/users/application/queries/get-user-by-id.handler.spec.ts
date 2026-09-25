@@ -75,6 +75,24 @@ describe('GetUserByIdHandler', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  it('returns the full profile, including emergencyContacts and image, for self', async () => {
+    const fullUser: UserEntity = {
+      ...mockUser,
+      image: 'avatar-uuid.png',
+      emergencyContacts: [{ name: 'Mom', phone: '999888777' }],
+    };
+    const repo = mockRepo();
+    repo.findById = vi.fn().mockResolvedValue(fullUser);
+    const handler = new GetUserByIdHandler(repo);
+
+    const result = await handler.execute(
+      new GetUserByIdQuery('user-xyz', 'user-xyz', 'CIUDADANO'),
+    );
+
+    expect(result.image).toBe('avatar-uuid.png');
+    expect(result.emergencyContacts).toEqual([{ name: 'Mom', phone: '999888777' }]);
+  });
+
   it('throws NotFoundException when user does not exist', async () => {
     const repo = mockRepo();
     repo.findById = vi.fn().mockResolvedValue(null);
