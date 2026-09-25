@@ -36,7 +36,7 @@ Out of scope: Redis adapter / multi-instance, Angular panel changes (only report
 
 ## Tasks
 - [x] R1 — Authenticated connections + rooms (drop `query.id`, reject invalid/refresh tokens, join `user:`/`role:` rooms, presence only for personnel to staff rooms). Route: delegated direct.
-- [ ] R2 — Room-scoped server emissions (alert created/updated/delegated, user disabled + force disconnect). Route: delegated direct.
+- [x] R2 — Room-scoped server emissions (alert created/updated/delegated, user disabled + force disconnect). Route: delegated direct.
 - [ ] R3 — Harden client events (remove `updatedAlert` relay; role-gated, session-identity, validated `updateLocation`/`updatePersonalState` to staff only). Route: delegated direct.
 
 ## Acceptance criteria
@@ -62,6 +62,15 @@ Out of scope: Redis adapter / multi-instance, Angular panel changes (only report
   - Presence (`personalConnected`/`personalDisconnected`) is emitted only for role `PERSONAL_SEGURIDAD`, and only to staff rooms (`role:ADMIN`, `role:BASE_SEGURIDAD`) via `server.to(staffRooms())`, replacing the previous `broadcast.emit`/`server.emit` to everyone.
   - CORS: gateway now reads `CORS_ORIGIN` from `process.env` (decorator metadata is evaluated at module load, before Nest DI is available, so `ConfigService` cannot be injected there) via `resolveCorsOrigin()`, mirroring `main.ts`'s `corsOrigin` logic exactly (comma-split list, or `true` for `*`).
 - Checks: `pnpm test` → 129/129 realtime tests pass (full suite run scoped to `src/realtime`, not run repo-wide here); `pnpm exec tsc --noEmit -p tsconfig.build.json` → clean; `pnpm lint` → clean for touched files (one `no-floating-promises` finding on `client.join(...)` fixed with `void`).
+- Commit: `f167960` — `feat(realtime): require authenticated sockets and join user/role rooms`.
+
+### R2 — Room-scoped server emissions
+- TDD: strict, RED confirmed first (`pnpm test -- src/realtime/presentation/gateways/realtime.gateway.spec.ts` → 4 failing / 127 passing), then implemented to GREEN (`pnpm test -- src/realtime` → 131 passed, 36 files).
+- Implementation (`src/realtime/presentation/gateways/realtime.gateway.ts`):
+  - `emitAlertCreated` → `server.to(staffRooms()).emit('sendAlert', alert)` (staff only, was `server.emit` to everyone).
+  - `emitAlertUpdated` → `updatedAlert` to staff rooms and, when `alert.userId` is set, to `user:{userId}` (owner citizen); `delegateAlert` (no longer a per-user suffixed event name) to `user:{attendedById}` only when `alert.attendedById` is set.
+  - `emitUserDisabled` → `disableUser` to `user:{userId}` only, then `server.in(user:{userId}).disconnectSockets(true)` to force-disconnect that user's sockets (was a broadcast-style `disableUser-${userId}` event to everyone, and did not disconnect anyone).
+- Checks: `pnpm test -- src/realtime` → 131/131 pass; `pnpm exec tsc --noEmit -p tsconfig.build.json` → clean; `pnpm lint` → clean (no new floating-promise finding on `disconnectSockets`).
 - Commit: pending (see below).
 
 

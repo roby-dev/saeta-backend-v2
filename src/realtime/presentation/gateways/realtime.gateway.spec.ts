@@ -206,38 +206,76 @@ describe('RealtimeGateway', () => {
     );
   });
 
-  it('emits sendAlert to all clients on emitAlertCreated', () => {
-    const alert: AlertEntity = {
-      id: 'alert-new',
-      userId: 'user-c',
-      latitude: -18.01,
-      longitude: -70.25,
-      typeId: 'type-1',
-      stateId: 'state-1',
-      creationDate: '19/09/2026,12:00:00',
-    };
+  describe('emitAlertCreated', () => {
+    it('emits sendAlert only to staff rooms', () => {
+      const alert: AlertEntity = {
+        id: 'alert-new',
+        userId: 'user-c',
+        latitude: -18.01,
+        longitude: -70.25,
+        typeId: 'type-1',
+        stateId: 'state-1',
+        creationDate: '19/09/2026,12:00:00',
+      };
 
-    gateway.emitAlertCreated(alert);
+      gateway.emitAlertCreated(alert);
 
-    expect(mockServer.emit).toHaveBeenCalledWith('sendAlert', alert);
+      expect(mockServer.to).toHaveBeenCalledWith(['role:ADMIN', 'role:BASE_SEGURIDAD']);
+      expect(toEmit).toHaveBeenCalledWith('sendAlert', alert);
+      expect(mockServer.emit).not.toHaveBeenCalled();
+    });
   });
 
-  it('emits updatedAlert and user/attended specific events on emitAlertUpdated', () => {
-    const alert: AlertEntity = {
-      id: 'alert-updated',
-      userId: 'user-c',
-      attendedById: 'user-sec',
-      latitude: -18.01,
-      longitude: -70.25,
-      typeId: 'type-1',
-      stateId: 'state-2',
-      creationDate: '19/09/2026,12:00:00',
-    };
+  describe('emitAlertUpdated', () => {
+    it('emits updatedAlert to staff rooms and the owner citizen, and delegateAlert to the assignee', () => {
+      const alert: AlertEntity = {
+        id: 'alert-updated',
+        userId: 'user-c',
+        attendedById: 'user-sec',
+        latitude: -18.01,
+        longitude: -70.25,
+        typeId: 'type-1',
+        stateId: 'state-2',
+        creationDate: '19/09/2026,12:00:00',
+      };
 
-    gateway.emitAlertUpdated(alert);
+      gateway.emitAlertUpdated(alert);
 
-    expect(mockServer.emit).toHaveBeenCalledWith('updatedAlert', alert);
-    expect(mockServer.emit).toHaveBeenCalledWith('updatedAlert-user-c', alert);
-    expect(mockServer.emit).toHaveBeenCalledWith('delegateAlert-user-sec', alert);
+      expect(mockServer.to).toHaveBeenCalledWith(['role:ADMIN', 'role:BASE_SEGURIDAD']);
+      expect(mockServer.to).toHaveBeenCalledWith('user:user-c');
+      expect(mockServer.to).toHaveBeenCalledWith('user:user-sec');
+      expect(toEmit).toHaveBeenCalledWith('updatedAlert', alert);
+      expect(toEmit).toHaveBeenCalledWith('delegateAlert', alert);
+      expect(mockServer.emit).not.toHaveBeenCalled();
+    });
+
+    it('does not target a delegateAlert room when the alert has no assignee', () => {
+      const alert: AlertEntity = {
+        id: 'alert-updated-2',
+        userId: 'user-c',
+        latitude: -18.01,
+        longitude: -70.25,
+        typeId: 'type-1',
+        stateId: 'state-2',
+        creationDate: '19/09/2026,12:00:00',
+      };
+
+      gateway.emitAlertUpdated(alert);
+
+      expect(mockServer.to).toHaveBeenCalledWith('user:user-c');
+      expect(toEmit).not.toHaveBeenCalledWith('delegateAlert', alert);
+    });
+  });
+
+  describe('emitUserDisabled', () => {
+    it('notifies only the target user room and force-disconnects that room', () => {
+      gateway.emitUserDisabled('user-c');
+
+      expect(mockServer.to).toHaveBeenCalledWith('user:user-c');
+      expect(toEmit).toHaveBeenCalledWith('disableUser', 'Su cuenta ha sido deshabilitada');
+      expect(mockServer.in).toHaveBeenCalledWith('user:user-c');
+      expect(disconnectSockets).toHaveBeenCalled();
+      expect(mockServer.emit).not.toHaveBeenCalled();
+    });
   });
 });

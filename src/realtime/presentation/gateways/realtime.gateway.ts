@@ -167,25 +167,27 @@ export class RealtimeGateway
 
   emitAlertCreated(alert: AlertEntity): void {
     this.logger.log(`Emitting sendAlert for alert #${alert.id}`);
-    this.server.emit('sendAlert', alert);
+    this.server.to(staffRooms()).emit('sendAlert', alert);
   }
 
   emitAlertUpdated(alert: AlertEntity): void {
     this.logger.log(`Emitting updatedAlert for alert #${alert.id}`);
-    this.server.emit('updatedAlert', alert);
+    this.server.to(staffRooms()).emit('updatedAlert', alert);
 
     if (alert.userId) {
-      this.server.emit(`updatedAlert-${alert.userId}`, alert);
+      this.server.to(userRoom(alert.userId)).emit('updatedAlert', alert);
     }
 
     if (alert.attendedById) {
-      this.server.emit(`delegateAlert-${alert.attendedById}`, alert);
+      this.server.to(userRoom(alert.attendedById)).emit('delegateAlert', alert);
     }
   }
 
   emitUserDisabled(userId: string): void {
     this.logger.log(`Emitting disableUser for user #${userId}`);
-    this.server.emit(`disableUser-${userId}`, 'Su cuenta ha sido deshabilitada');
+    const room = userRoom(userId);
+    this.server.to(room).emit('disableUser', 'Su cuenta ha sido deshabilitada');
+    this.server.in(room).disconnectSockets(true);
   }
 
   getActivePersonnel(): string[] {
