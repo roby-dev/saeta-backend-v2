@@ -136,7 +136,35 @@ implementation, citizen-app repo changes (different agent/repo).
   (see final report for hash).
 
 ### B3 — Citizen profile API contract audit
-- Findings and the citizen-facing contract table are recorded below after the audit.
+- Audit method: read `users.controller.ts`, `update-user.handler.ts` (+spec),
+  `change-password.handler.ts` (+spec), `upload-avatar.handler.ts` (+spec),
+  `get-user-by-id.handler.ts` (+spec), `update-user.dto.ts`, `main.ts` (global
+  `ValidationPipe({ whitelist: true, forbidNonWhitelisted: true })`).
+- (a) PATCH own name/lastname/phone/email, not role/statusAccount/others: confirmed no defect.
+  `UpdateUserDto` has no `role` property, so the global `forbidNonWhitelisted` pipe rejects it
+  with 400 (new test: `update-user.dto.spec.ts`, "rejects a role field as a non-whitelisted
+  property" — RED before nothing needed changing, confirms existing behavior). `statusAccount`
+  *is* a declared DTO field (by design, so `ADMIN`/`BASE_SEGURIDAD` can use the same PATCH), but
+  `UpdateUserHandler` strips it server-side unless the caller is privileged (already covered by
+  `update-user.handler.spec.ts` "strips statusAccount modification..."). Updating someone else's
+  profile without privilege throws `ForbiddenException` (already covered).
+- (b) PATCH own password requires current password: confirmed no defect, fully covered by
+  `change-password.handler.spec.ts` (self without `currentPassword` → 400; wrong password →
+  401; `ADMIN` reset needs no current password).
+- (c) PUT avatar owner/admin only: confirmed no defect. `UploadAvatarHandler` already throws
+  `ForbiddenException` unless `isOwner || isAdmin` (already covered by
+  `upload-avatar.handler.spec.ts` "throws ForbiddenException when caller is not owner nor
+  admin"). A `BASE_SEGURIDAD`/`PERSONAL_SEGURIDAD` caller uploading someone else's avatar is
+  also rejected (same guard) — intentional, not audited as a citizen-facing rule.
+- (d) GET own user includes emergencyContacts and image: confirmed no defect, but coverage was
+  missing — added `get-user-by-id.handler.spec.ts` "returns the full profile, including
+  emergencyContacts and image, for self" (passed immediately, no handler change needed).
+- No authorization defect found; only added tests were `update-user.dto.spec.ts` (new file, 4
+  tests) and one added case in `get-user-by-id.handler.spec.ts`.
+- Checks: `pnpm test` (full) → 169/169 pass; `pnpm exec tsc --noEmit -p tsconfig.build.json` →
+  clean; `pnpm lint` on touched files → clean (same pre-existing unrelated dashboard warning).
+- Commit: `test(users): add citizen profile authorization contract coverage` (see final report
+  for hash).
 
 ## Event contract (server → client) after this change
 
@@ -168,4 +196,4 @@ password changes or for the disable transition (which keeps `disableUser` as its
 
 No authorization defect found in (a)-(d): role/statusAccount rejection, password
 current-password requirement, and avatar owner/admin guard were already correctly enforced;
-missing coverage was added at the DTO/handler level (see B3 evidence below once tests land).
+missing coverage was added at the DTO/handler level (see B3 evidence above).
