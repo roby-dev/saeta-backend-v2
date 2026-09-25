@@ -42,6 +42,45 @@ export function resolveCorsOrigin(): string[] | boolean {
   return raw === '*' ? true : raw.split(',').map((origin) => origin.trim());
 }
 
+function parseCoordinates(payload: unknown): [number, number] | undefined {
+  let lat: unknown;
+  let lng: unknown;
+
+  if (Array.isArray(payload)) {
+    [lat, lng] = payload;
+  } else if (payload !== null && typeof payload === 'object') {
+    const p = payload as Record<string, unknown>;
+    lat = p.lat ?? p.latitude;
+    lng = p.lng ?? p.longitude;
+  }
+
+  if (
+    typeof lat === 'number' &&
+    typeof lng === 'number' &&
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lng >= -180 &&
+    lng <= 180
+  ) {
+    return [lat, lng];
+  }
+
+  return undefined;
+}
+
+function parseAvailability(payload: unknown): string | undefined {
+  if (payload !== null && typeof payload === 'object' && 'availability' in payload) {
+    const value = (payload as { availability: unknown }).availability;
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
 @WebSocketGateway({
   cors: {
     origin: resolveCorsOrigin(),
@@ -142,27 +181,36 @@ export class RealtimeGateway
 
   @SubscribeMessage('updateLocation')
   handleUpdateLocation(client: Socket, payload: unknown): void {
-    // Supports legacy: (user, latLng) or object payload { user, latLng }
-    if (Array.isArray(payload)) {
-      const [user, latLng] = payload;
-      client.broadcast.emit('updateLocation', user, latLng);
-    } else if (typeof payload === 'object' && payload !== null && 'user' in payload) {
-      const p = payload as { user: unknown; latLng?: unknown; location?: unknown };
-      const coords = p.latLng ?? p.location;
-      client.broadcast.emit('updateLocation', p.user, coords);
-    } else {
-      client.broadcast.emit('updateLocation', payload);
+    const session = client.data as Partial<RealtimeSocketData>;
+    if (session?.role !== 'PERSONAL_SEGURIDAD' || !session.userId) {
+      return;
     }
+
+    const coords = parseCoordinates(payload);
+    if (!coords) {
+      this.logger.warn(`Ignoring invalid updateLocation payload from ${session.userId}`);
+      return;
+    }
+
+    this.server.to(staffRooms()).emit('updateLocation', { id: session.userId }, coords);
   }
 
   @SubscribeMessage('updatePersonalState')
   handleUpdatePersonalState(client: Socket, payload: unknown): void {
-    client.broadcast.emit('updatePersonalState', payload);
-  }
+    const session = client.data as Partial<RealtimeSocketData>;
+    if (session?.role !== 'PERSONAL_SEGURIDAD' || !session.userId) {
+      return;
+    }
 
-  @SubscribeMessage('updatedAlert')
-  handleClientUpdatedAlert(client: Socket, payload: unknown): void {
-    client.broadcast.emit('updatedAlert', payload);
+    const availability = parseAvailability(payload);
+    if (!availability) {
+      this.logger.warn(`Ignoring invalid updatePersonalState payload from ${session.userId}`);
+      return;
+    }
+
+    this.server
+      .to(staffRooms())
+      .emit('updatePersonalState', { id: session.userId, availability });
   }
 
   emitAlertCreated(alert: AlertEntity): void {

@@ -173,37 +173,103 @@ describe('RealtimeGateway', () => {
     });
   });
 
-  it('broadcasts updateLocation when receiving location message', () => {
-    const userPayload = { id: 'user-1', name: 'Officer' };
-    const coords = [-18.01, -70.25];
+  describe('handleUpdateLocation', () => {
+    beforeEach(() => {
+      mockClient.data = { userId: 'user-sec-1', role: 'PERSONAL_SEGURIDAD' };
+    });
 
-    gateway.handleUpdateLocation(mockClient as Socket, [userPayload, coords]);
+    it('forwards a validated location update from personnel to staff rooms using the session identity', () => {
+      gateway.handleUpdateLocation(mockClient as Socket, [-18.01, -70.25]);
 
-    expect(mockClient.broadcast!.emit).toHaveBeenCalledWith(
-      'updateLocation',
-      userPayload,
-      coords,
-    );
+      expect(mockServer.to).toHaveBeenCalledWith(['role:ADMIN', 'role:BASE_SEGURIDAD']);
+      expect(toEmit).toHaveBeenCalledWith('updateLocation', { id: 'user-sec-1' }, [
+        -18.01, -70.25,
+      ]);
+    });
+
+    it('accepts an object payload with lat/lng fields', () => {
+      gateway.handleUpdateLocation(mockClient as Socket, { lat: -18.01, lng: -70.25 });
+
+      expect(toEmit).toHaveBeenCalledWith('updateLocation', { id: 'user-sec-1' }, [
+        -18.01, -70.25,
+      ]);
+    });
+
+    it('ignores a spoofed identity in the payload and always forwards the session userId', () => {
+      gateway.handleUpdateLocation(mockClient as Socket, {
+        lat: -18.01,
+        lng: -70.25,
+        user: { id: 'someone-else' },
+      });
+
+      expect(toEmit).toHaveBeenCalledWith('updateLocation', { id: 'user-sec-1' }, [
+        -18.01, -70.25,
+      ]);
+    });
+
+    it('ignores an update from a non-personnel socket', () => {
+      mockClient.data = { userId: 'user-c-1', role: 'CIUDADANO' };
+
+      gateway.handleUpdateLocation(mockClient as Socket, [-18.01, -70.25]);
+
+      expect(mockServer.to).not.toHaveBeenCalled();
+      expect(toEmit).not.toHaveBeenCalled();
+    });
+
+    it('ignores an update from an unauthenticated socket', () => {
+      mockClient.data = {};
+
+      gateway.handleUpdateLocation(mockClient as Socket, [-18.01, -70.25]);
+
+      expect(mockServer.to).not.toHaveBeenCalled();
+    });
+
+    it('ignores an out-of-range coordinate payload', () => {
+      gateway.handleUpdateLocation(mockClient as Socket, [999, -70.25]);
+
+      expect(mockServer.to).not.toHaveBeenCalled();
+    });
+
+    it('ignores a malformed payload', () => {
+      gateway.handleUpdateLocation(mockClient as Socket, { foo: 'bar' });
+
+      expect(mockServer.to).not.toHaveBeenCalled();
+    });
   });
 
-  it('broadcasts updatePersonalState', () => {
-    const statePayload = { id: 'user-1', availability: 'OCUPADO' };
-    gateway.handleUpdatePersonalState(mockClient as Socket, statePayload);
+  describe('handleUpdatePersonalState', () => {
+    beforeEach(() => {
+      mockClient.data = { userId: 'user-sec-1', role: 'PERSONAL_SEGURIDAD' };
+    });
 
-    expect(mockClient.broadcast!.emit).toHaveBeenCalledWith(
-      'updatePersonalState',
-      statePayload,
-    );
+    it('forwards a validated state update from personnel to staff rooms using the session identity', () => {
+      gateway.handleUpdatePersonalState(mockClient as Socket, { availability: 'OCUPADO' });
+
+      expect(mockServer.to).toHaveBeenCalledWith(['role:ADMIN', 'role:BASE_SEGURIDAD']);
+      expect(toEmit).toHaveBeenCalledWith('updatePersonalState', {
+        id: 'user-sec-1',
+        availability: 'OCUPADO',
+      });
+    });
+
+    it('ignores an update from a non-personnel socket', () => {
+      mockClient.data = { userId: 'user-c-1', role: 'CIUDADANO' };
+
+      gateway.handleUpdatePersonalState(mockClient as Socket, { availability: 'OCUPADO' });
+
+      expect(mockServer.to).not.toHaveBeenCalled();
+    });
+
+    it('ignores a payload without a valid availability field', () => {
+      gateway.handleUpdatePersonalState(mockClient as Socket, { availability: '' });
+
+      expect(mockServer.to).not.toHaveBeenCalled();
+    });
   });
 
-  it('broadcasts updatedAlert from client', () => {
-    const alertPayload = { id: 'alert-1', stateId: 'st-2' };
-    gateway.handleClientUpdatedAlert(mockClient as Socket, alertPayload);
-
-    expect(mockClient.broadcast!.emit).toHaveBeenCalledWith(
-      'updatedAlert',
-      alertPayload,
-    );
+  it('no longer registers a client-relay handler for updatedAlert', () => {
+    expect((gateway as unknown as { handleClientUpdatedAlert?: unknown })
+      .handleClientUpdatedAlert).toBeUndefined();
   });
 
   describe('emitAlertCreated', () => {
