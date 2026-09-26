@@ -19,7 +19,9 @@ import { JwtAuthGuard } from '../../auth/presentation/jwt-auth.guard.js';
 import { Roles } from '../../auth/presentation/roles.decorator.js';
 import { RolesGuard } from '../../auth/presentation/roles.guard.js';
 import { CreateAlertCommand } from '../application/commands/create-alert.command.js';
+import { DelegateAlertCommand } from '../application/commands/delegate-alert.command.js';
 import { DeletePendingAlertsCommand } from '../application/commands/delete-pending-alerts.command.js';
+import { RejectAlertCommand } from '../application/commands/reject-alert.command.js';
 import { UpdateAlertFeedbackCommand } from '../application/commands/update-alert-feedback.command.js';
 import { UpdateAlertCommand } from '../application/commands/update-alert.command.js';
 import { GetAlertByIdQuery } from '../application/queries/get-alert-by-id.query.js';
@@ -31,7 +33,9 @@ import {
 } from '../application/queries/get-alerts.query.js';
 import type { AlertEntity } from '../domain/alert.entity.js';
 import { CreateAlertDto } from './dto/create-alert.dto.js';
+import { DelegateAlertDto } from './dto/delegate-alert.dto.js';
 import { GetAlertsQueryDto } from './dto/get-alerts-query.dto.js';
+import { RejectAlertDto } from './dto/reject-alert.dto.js';
 import { UpdateAlertFeedbackDto } from './dto/update-alert-feedback.dto.js';
 import { UpdateAlertDto } from './dto/update-alert.dto.js';
 
@@ -182,6 +186,34 @@ export class AlertsController {
         commentary: dto.commentary,
         score: dto.score,
       }),
+    );
+    return { ok: true, alerts: alert };
+  }
+
+  @Post(':id/reject')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'BASE_SEGURIDAD', 'PERSONAL_SEGURIDAD')
+  @HttpCode(HttpStatus.OK)
+  async rejectAlert(
+    @Param('id') alertId: string,
+    @Body() dto: RejectAlertDto,
+  ): Promise<{ ok: boolean; alerts: AlertEntity }> {
+    const alert: AlertEntity = await this.commandBus.execute(
+      new RejectAlertCommand(alertId, dto.commentary),
+    );
+    return { ok: true, alerts: alert };
+  }
+
+  @Post(':id/delegate')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'BASE_SEGURIDAD', 'PERSONAL_SEGURIDAD')
+  @HttpCode(HttpStatus.OK)
+  async delegateAlert(
+    @Param('id') alertId: string,
+    @Body() dto: DelegateAlertDto,
+  ): Promise<{ ok: boolean; alerts: AlertEntity }> {
+    const alert: AlertEntity = await this.commandBus.execute(
+      new DelegateAlertCommand(alertId, dto.attendedById, dto.commentary),
     );
     return { ok: true, alerts: alert };
   }

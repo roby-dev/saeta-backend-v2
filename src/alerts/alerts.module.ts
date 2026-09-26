@@ -3,7 +3,9 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module.js';
 import { UsersModule } from '../users/users.module.js';
 import { CreateAlertHandler } from './application/commands/create-alert.handler.js';
+import { DelegateAlertHandler } from './application/commands/delegate-alert.handler.js';
 import { DeletePendingAlertsHandler } from './application/commands/delete-pending-alerts.handler.js';
+import { RejectAlertHandler } from './application/commands/reject-alert.handler.js';
 import { UpdateAlertFeedbackHandler } from './application/commands/update-alert-feedback.handler.js';
 import { UpdateAlertHandler } from './application/commands/update-alert.handler.js';
 import { GetAlertByIdHandler } from './application/queries/get-alert-by-id.handler.js';
@@ -32,6 +34,8 @@ import { AlertsController } from './presentation/alerts.controller.js';
     CreateAlertHandler,
     UpdateAlertHandler,
     UpdateAlertFeedbackHandler,
+    RejectAlertHandler,
+    DelegateAlertHandler,
     DeletePendingAlertsHandler,
     GetAlertsHandler,
     GetAlertByIdHandler,
