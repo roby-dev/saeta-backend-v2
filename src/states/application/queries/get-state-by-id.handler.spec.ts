@@ -11,6 +11,7 @@ describe('GetStateByIdHandler', () => {
     findAll: vi.fn(),
     findById: vi.fn().mockResolvedValue(mockState),
     findByName: vi.fn(),
+    findByCode: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
   });

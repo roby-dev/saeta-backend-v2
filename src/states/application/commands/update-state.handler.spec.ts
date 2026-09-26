@@ -1,5 +1,6 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
+import { StateCode } from '../../domain/state-code.enum.js';
 import type { StateRepository } from '../../domain/state.repository.js';
 import { UpdateStateCommand } from './update-state.command.js';
 import { UpdateStateHandler } from './update-state.handler.js';
@@ -11,9 +12,10 @@ describe('UpdateStateHandler', () => {
     findAll: vi.fn(),
     findById: vi.fn().mockResolvedValue(existingState),
     findByName: vi.fn().mockResolvedValue(null),
+    findByCode: vi.fn().mockResolvedValue(null),
     create: vi.fn(),
-    update: vi.fn().mockImplementation((id, name) =>
-      Promise.resolve({ id, name }),
+    update: vi.fn().mockImplementation((id, name, code) =>
+      Promise.resolve({ id, name, code }),
     ),
   });
 
@@ -46,5 +48,28 @@ describe('UpdateStateHandler', () => {
     await expect(
       handler.execute(new UpdateStateCommand('missing-id', 'Nuevo')),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('assigns a code to a state that does not have one yet', async () => {
+    const repo = mockRepo();
+    const handler = new UpdateStateHandler(repo);
+
+    const result = await handler.execute(
+      new UpdateStateCommand('state-1', 'Pendiente', StateCode.PENDING),
+    );
+    expect(result.code).toBe(StateCode.PENDING);
+    expect(repo.update).toHaveBeenCalledWith('state-1', 'Pendiente', StateCode.PENDING);
+  });
+
+  it('rejects update if another state already has the requested code', async () => {
+    const repo = mockRepo();
+    repo.findByCode = vi
+      .fn()
+      .mockResolvedValue({ id: 'other-state', name: 'Resuelta', code: StateCode.RESOLVED });
+    const handler = new UpdateStateHandler(repo);
+
+    await expect(
+      handler.execute(new UpdateStateCommand('state-1', 'Pendiente', StateCode.RESOLVED)),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 });

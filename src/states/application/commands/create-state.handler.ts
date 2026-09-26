@@ -20,6 +20,15 @@ export class CreateStateHandler implements ICommandHandler<CreateStateCommand, S
       throw new ConflictException('Estado ya registrado.');
     }
 
-    return this.states.create(command.name);
+    if (command.code) {
+      const codeCollision = await this.states.findByCode(command.code);
+      if (codeCollision) {
+        throw new ConflictException('El código de estado ya está en uso.');
+      }
+    }
+
+    return command.code
+      ? this.states.create(command.name, command.code)
+      : this.states.create(command.name);
   }
 }

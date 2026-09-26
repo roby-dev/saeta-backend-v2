@@ -64,7 +64,7 @@ export class StatesController {
     @Body() dto: CreateStateDto,
   ): Promise<{ ok: boolean; state: StateEntity }> {
     const state: StateEntity = await this.commandBus.execute(
-      new CreateStateCommand(dto.name),
+      new CreateStateCommand(dto.name, dto.code),
     );
     return { ok: true, state };
   }
@@ -87,7 +87,7 @@ export class StatesController {
     @Body() dto: UpdateStateDto,
   ): Promise<{ ok: boolean; state: StateEntity }> {
     const state: StateEntity = await this.commandBus.execute(
-      new UpdateStateCommand(id, dto.name),
+      new UpdateStateCommand(id, dto.name, dto.code),
     );
     return { ok: true, state };
   }
