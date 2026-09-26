@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { CommandHandler, EventBus, type ICommandHandler } from '@nestjs/cqrs';
+import { StateCode } from '../../../states/domain/state-code.enum.js';
 import { AlertUpdatedEvent } from '../../domain/events/alert-updated.event.js';
 import type { AlertEntity } from '../../domain/alert.entity.js';
 import {
@@ -42,23 +43,23 @@ export class UpdateAlertHandler implements ICommandHandler<UpdateAlertCommand, A
       payload.attentionDate = getLimaFormattedDate();
     }
 
-    // Auto-fill culminationDate if moving to terminal state (Resuelta, Rechazada, Cancelada)
+    // Auto-fill culminationDate if moving to a terminal state (RESOLVED, REJECTED)
     if (payload.stateId) {
-      const stateName = await this.alerts.getStateName(payload.stateId);
-      if (stateName) {
-        const upper = stateName.toUpperCase();
+      const stateCode = await this.alerts.getStateCode(payload.stateId);
+      if (stateCode) {
         const isTerminal =
-          upper.includes('RESUELT') ||
-          upper.includes('RECHAZAD') ||
-          upper.includes('CANCELAD');
+          stateCode === StateCode.RESOLVED || stateCode === StateCode.REJECTED;
 
-        if (upper.includes('PENDIENT')) {
+        if (stateCode === StateCode.PENDING) {
           payload.attendedById = '';
           payload.attentionDate = '';
           payload.culminationDate = '';
         } else if (isTerminal && !payload.culminationDate) {
           payload.culminationDate = getLimaFormattedDate();
-        } else if (!isTerminal && upper.includes('PROCESO') && payload.culminationDate === undefined) {
+        } else if (
+          stateCode === StateCode.IN_PROGRESS &&
+          payload.culminationDate === undefined
+        ) {
           payload.culminationDate = '';
         }
       }

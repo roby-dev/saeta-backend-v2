@@ -3,6 +3,7 @@ import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Alert } from '../../../alerts/infrastructure/persistence/alert.schema.js';
+import { StateCode } from '../../../states/domain/state-code.enum.js';
 import { State } from '../../../states/infrastructure/persistence/state.schema.js';
 import { Type } from '../../../types/infrastructure/persistence/type.schema.js';
 import { User } from '../../../users/infrastructure/persistence/user.schema.js';
@@ -161,16 +162,22 @@ export class GetDashboardOverviewHandler
     for (const st of statesList) {
       const count = stateCountMap.get(st._id.toString()) ?? 0;
       totalAlerts += count;
-      const upperName = st.name.toUpperCase();
 
-      if (upperName.includes('PENDIENTE')) {
-        pending += count;
-      } else if (upperName.includes('PROCESO')) {
-        inProcess += count;
-      } else if (upperName.includes('RESUELT')) {
-        resolved += count;
-      } else if (upperName.includes('RECHAZAD') || upperName.includes('CANCELAD')) {
-        rejected += count;
+      switch (st.code) {
+        case StateCode.PENDING:
+          pending += count;
+          break;
+        case StateCode.IN_PROGRESS:
+          inProcess += count;
+          break;
+        case StateCode.RESOLVED:
+          resolved += count;
+          break;
+        case StateCode.REJECTED:
+          rejected += count;
+          break;
+        default:
+          break;
       }
     }
 
