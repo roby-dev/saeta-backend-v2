@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { type Model, Types } from 'mongoose';
+import type { StateCode } from '../../domain/state-code.enum.js';
 import type { StateEntity } from '../../domain/state.entity.js';
 import type { StateRepository } from '../../domain/state.repository.js';
 import { State, type StateDocument } from './state.schema.js';
@@ -39,18 +40,31 @@ export class MongooseStateRepository implements StateRepository {
     return doc ? this.toEntity(doc as StateDocument) : null;
   }
 
-  async create(name: string): Promise<StateEntity> {
-    const created = await this.stateModel.create({ name: name.trim() });
+  async findByCode(code: StateCode): Promise<StateEntity | null> {
+    const doc = await this.stateModel.findOne({ code }).lean().exec();
+    return doc ? this.toEntity(doc as StateDocument) : null;
+  }
+
+  async create(name: string, code?: StateCode): Promise<StateEntity> {
+    const created = await this.stateModel.create({
+      name: name.trim(),
+      ...(code ? { code } : {}),
+    });
     return this.toEntity(created.toObject() as StateDocument);
   }
 
-  async update(id: string, name: string): Promise<StateEntity | null> {
+  async update(id: string, name: string, code?: StateCode): Promise<StateEntity | null> {
     if (!Types.ObjectId.isValid(id)) {
       return null;
     }
 
+    const setFields: Record<string, unknown> = { name: name.trim() };
+    if (code) {
+      setFields.code = code;
+    }
+
     const updated = await this.stateModel
-      .findByIdAndUpdate(id, { $set: { name: name.trim() } }, { new: true })
+      .findByIdAndUpdate(id, { $set: setFields }, { new: true })
       .lean()
       .exec();
 
@@ -61,6 +75,7 @@ export class MongooseStateRepository implements StateRepository {
     return {
       id: doc._id.toString(),
       name: doc.name,
+      code: doc.code,
     };
   }
 }

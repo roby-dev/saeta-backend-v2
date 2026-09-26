@@ -5,6 +5,7 @@ import { CreateStateHandler } from './application/commands/create-state.handler.
 import { UpdateStateHandler } from './application/commands/update-state.handler.js';
 import { GetStateByIdHandler } from './application/queries/get-state-by-id.handler.js';
 import { GetStatesHandler } from './application/queries/get-states.handler.js';
+import { StateCodeBackfillService } from './application/services/state-code-backfill.service.js';
 import { STATE_REPOSITORY } from './domain/state.repository.js';
 import { MongooseStateRepository } from './infrastructure/persistence/mongoose-state.repository.js';
 import { State, StateSchema } from './infrastructure/persistence/state.schema.js';
@@ -21,6 +22,7 @@ import { StatesController } from './presentation/states.controller.js';
     UpdateStateHandler,
     GetStatesHandler,
     GetStateByIdHandler,
+    StateCodeBackfillService,
     MongooseStateRepository,
     {
       provide: STATE_REPOSITORY,
