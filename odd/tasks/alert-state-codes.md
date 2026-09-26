@@ -46,3 +46,8 @@ States are `{ id, name }` only. Frontend and backend classify states with `name.
 
 ## Next step
 All tasks (T1-T5) complete. Backend and frontend each have their own PR still to be opened per the delivery decision (separate PRs, ask-on-risk) — that remains a user/orchestrator decision, out of scope for this writer.
+
+## Delivery (feature-branch-chain, chosen by user 2026-09-26)
+- Backend `roby-dev/saeta-backend-v2`: tracker #1 (draft) ← #2 T1 (`ece841e`,`7306dec`) ← #3 T2 (`9dfd415`,`4042b6f`) ← #4 T3 (`9cb555c`,`974abd3`) ← #5 T4 (`eb13861`,`cf987b8`,`395ab67`). #3 is 403 changed lines (includes its docs commit).
+- Frontend `roby-dev/saeta-frontend-v2`: tracker #1 (draft) ← #2 map popup + side sheet ← #3 sidebar active ← #4 models/style/service ← #5 map by code ← #6 list by code. Original T5 commit `b179cc0` split by layer; final tree identical.
+- Merge order: children in order into each tracker; deploy backend before frontend.
