@@ -11,6 +11,7 @@ import type {
   PaginatedAlerts,
   UpdateAlertData,
 } from '../../domain/alert.repository.js';
+import { getAllowedActions } from '../../domain/policies/alert-action.policy.js';
 import { State } from './alert-state.schema.js';
 import { Alert, type AlertDocument } from './alert.schema.js';
 
@@ -59,7 +60,7 @@ export class MongooseAlertRepository implements AlertRepository {
         'name lastname DNI image email phone role availability statusAccount',
       )
       .populate<{ type: PopulatedNamed }>('type', 'name priority')
-      .populate<{ state: PopulatedNamed }>('state', 'name')
+      .populate<{ state: PopulatedState }>('state', 'name code')
       .lean()
       .exec();
 
@@ -95,7 +96,7 @@ export class MongooseAlertRepository implements AlertRepository {
           'name lastname DNI image email phone role availability statusAccount',
         )
         .populate<{ type: PopulatedNamed }>('type', 'name priority')
-        .populate<{ state: PopulatedNamed }>('state', 'name')
+        .populate<{ state: PopulatedState }>('state', 'name code')
         .lean()
         .exec(),
       this.alertModel.countDocuments(query).exec(),
@@ -172,7 +173,7 @@ export class MongooseAlertRepository implements AlertRepository {
           'name lastname DNI image email phone role availability statusAccount',
         )
         .populate<{ type: PopulatedNamed }>('type', 'name priority')
-        .populate<{ state: PopulatedNamed }>('state', 'name')
+        .populate<{ state: PopulatedState }>('state', 'name code')
         .lean()
         .exec(),
       this.alertModel.countDocuments(query).exec(),
@@ -201,7 +202,7 @@ export class MongooseAlertRepository implements AlertRepository {
           'name lastname DNI image email phone role availability statusAccount',
         )
         .populate<{ type: PopulatedNamed }>('type', 'name priority')
-        .populate<{ state: PopulatedNamed }>('state', 'name')
+        .populate<{ state: PopulatedState }>('state', 'name code')
         .lean()
         .exec(),
       this.alertModel.countDocuments(query).exec(),
@@ -347,7 +348,7 @@ export class MongooseAlertRepository implements AlertRepository {
       id_user: Types.ObjectId | PopulatedUser;
       attendedBy?: Types.ObjectId | PopulatedUser;
       type: Types.ObjectId | PopulatedNamed;
-      state: Types.ObjectId | PopulatedNamed;
+      state: Types.ObjectId | PopulatedState;
       createdAt?: Date;
       updatedAt?: Date;
     },
@@ -357,6 +358,7 @@ export class MongooseAlertRepository implements AlertRepository {
       doc.attendedBy && typeof doc.attendedBy === 'object' && 'name' in doc.attendedBy;
     const isTypePopulated = doc.type && typeof doc.type === 'object' && 'name' in doc.type;
     const isStatePopulated = doc.state && typeof doc.state === 'object' && 'name' in doc.state;
+    const stateCode = isStatePopulated ? (doc.state as PopulatedState).code : undefined;
 
     return {
       id: doc._id.toString(),
@@ -419,10 +421,12 @@ export class MongooseAlertRepository implements AlertRepository {
         : undefined,
       state: isStatePopulated
         ? {
-            id: (doc.state as PopulatedNamed)._id.toString(),
-            name: (doc.state as PopulatedNamed).name,
+            id: (doc.state as PopulatedState)._id.toString(),
+            name: (doc.state as PopulatedState).name,
+            code: stateCode,
           }
         : undefined,
+      allowedActions: getAllowedActions(stateCode),
     };
   }
 }

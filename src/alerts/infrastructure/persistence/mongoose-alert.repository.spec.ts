@@ -17,6 +17,54 @@ function queryStub(resolvedValue: unknown) {
 }
 
 describe('MongooseAlertRepository', () => {
+  describe('findById', () => {
+    it('populates state with name and code, and exposes allowedActions from the code', async () => {
+      const alertModel = {
+        findById: vi.fn().mockReturnValue(
+          queryStub({
+            _id: 'alert-1',
+            id_user: 'user-1',
+            latitude: -18.01,
+            longitude: -70.25,
+            type: 'type-1',
+            state: { _id: 'state-1', name: 'Pendiente', code: StateCode.PENDING },
+            creationDate: '19/09/2026,10:00:00',
+          }),
+        ),
+      };
+      const stateModel = {} as never;
+
+      const repo = new MongooseAlertRepository(alertModel as never, stateModel);
+      const entity = await repo.findById('507f1f77bcf86cd799439011');
+
+      expect(alertModel.findById().populate).toHaveBeenCalledWith('state', 'name code');
+      expect(entity?.state?.code).toBe(StateCode.PENDING);
+      expect(entity?.allowedActions).toEqual(['delegate', 'reject', 'manage']);
+    });
+
+    it('falls back to manage-only allowedActions when the state has no code', async () => {
+      const alertModel = {
+        findById: vi.fn().mockReturnValue(
+          queryStub({
+            _id: 'alert-1',
+            id_user: 'user-1',
+            latitude: -18.01,
+            longitude: -70.25,
+            type: 'type-1',
+            state: { _id: 'state-1', name: 'Estado personalizado' },
+            creationDate: '19/09/2026,10:00:00',
+          }),
+        ),
+      };
+      const stateModel = {} as never;
+
+      const repo = new MongooseAlertRepository(alertModel as never, stateModel);
+      const entity = await repo.findById('507f1f77bcf86cd799439011');
+
+      expect(entity?.allowedActions).toEqual(['manage']);
+    });
+  });
+
   describe('getStateCode', () => {
     it('returns the code of the given state id', async () => {
       const alertModel = {} as never;
