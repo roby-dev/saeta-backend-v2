@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { StateCode } from '../../../states/domain/state-code.enum.js';
 import {
   formatDurationSeconds,
   GetDashboardOverviewHandler,
@@ -91,8 +92,8 @@ describe('GetDashboardOverviewHandler', () => {
       find: vi.fn().mockReturnValue({
         lean: vi.fn().mockReturnValue({
           exec: vi.fn().mockResolvedValue([
-            { _id: mockStateId1, name: 'Pendiente' },
-            { _id: mockStateId2, name: 'Resuelta' },
+            { _id: mockStateId1, name: 'Pendiente', code: StateCode.PENDING },
+            { _id: mockStateId2, name: 'Resuelta', code: StateCode.RESOLVED },
           ]),
         }),
       }),
@@ -147,5 +148,62 @@ describe('GetDashboardOverviewHandler', () => {
     expect(result.recentCommentaries.length).toBe(1);
     expect(result.recentCommentaries[0].userName).toBe('Juan Perez');
     expect(result.weeklyAlerts).toBeDefined();
+  });
+
+  it('buckets state metrics by code, so a renamed state keeps its bucket', async () => {
+    const renamedPendingStateId = '609b1f2e1f1f1f1f1f1f1f13';
+
+    const mockAlertModel = {
+      aggregate: vi.fn().mockImplementation((pipeline: unknown[]) => {
+        const firstStage = (pipeline[0] as Record<string, unknown>)?.$group as Record<string, unknown>;
+        if (firstStage?._id === '$state') {
+          return Promise.resolve([{ _id: renamedPendingStateId, count: 7 }]);
+        }
+        return Promise.resolve([]);
+      }),
+      find: vi.fn().mockReturnValue({
+        lean: vi.fn().mockReturnValue({ exec: vi.fn().mockResolvedValue([]) }),
+        sort: vi.fn().mockReturnValue({
+          limit: vi.fn().mockReturnValue({
+            populate: vi.fn().mockReturnValue({
+              lean: vi.fn().mockReturnValue({ exec: vi.fn().mockResolvedValue([]) }),
+            }),
+          }),
+        }),
+      }),
+    };
+
+    const mockUserModel = { aggregate: vi.fn().mockResolvedValue([]) };
+
+    const mockStateModel = {
+      find: vi.fn().mockReturnValue({
+        lean: vi.fn().mockReturnValue({
+          // Name intentionally carries no legacy Spanish wording: only `code` says PENDING.
+          exec: vi.fn().mockResolvedValue([
+            { _id: renamedPendingStateId, name: 'Nuevo ingreso', code: StateCode.PENDING },
+          ]),
+        }),
+      }),
+    };
+
+    const mockTypeModel = {
+      find: vi.fn().mockReturnValue({
+        sort: vi.fn().mockReturnValue({
+          lean: vi.fn().mockReturnValue({ exec: vi.fn().mockResolvedValue([]) }),
+        }),
+      }),
+    };
+
+    const handler = new GetDashboardOverviewHandler(
+      mockAlertModel as never,
+      mockUserModel as never,
+      mockStateModel as never,
+      mockTypeModel as never,
+    );
+
+    const result = await handler.execute(new GetDashboardOverviewQuery(2026));
+
+    expect(result.states.pending).toBe(7);
+    expect(result.states.total).toBe(7);
   });
 });

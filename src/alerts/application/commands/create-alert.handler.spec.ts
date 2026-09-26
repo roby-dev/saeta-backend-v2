@@ -56,7 +56,8 @@ describe('CreateAlertHandler', () => {
     update: vi.fn(),
     deletePending: vi.fn(),
     getDefaultPendingStateId: vi.fn().mockResolvedValue('state-pending-1'),
-    getStateName: vi.fn(),
+    getStateCode: vi.fn(),
+    findStateIdByCode: vi.fn(),
   });
 
   it('creates an alert for an active citizen without pending alerts', async () => {

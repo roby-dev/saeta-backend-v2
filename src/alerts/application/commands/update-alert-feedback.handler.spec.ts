@@ -34,7 +34,8 @@ describe('UpdateAlertFeedbackHandler', () => {
     ),
     deletePending: vi.fn(),
     getDefaultPendingStateId: vi.fn(),
-    getStateName: vi.fn(),
+    getStateCode: vi.fn(),
+    findStateIdByCode: vi.fn(),
   });
 
   it('allows citizen owner to rate and comment on attended alert', async () => {
