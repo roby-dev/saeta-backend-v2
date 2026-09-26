@@ -31,7 +31,16 @@ export class UpdateStateHandler implements ICommandHandler<UpdateStateCommand, S
       }
     }
 
-    const updated = await this.states.update(command.stateId, command.name);
+    if (command.code && existing.code !== command.code) {
+      const codeCollision = await this.states.findByCode(command.code);
+      if (codeCollision && codeCollision.id !== command.stateId) {
+        throw new ConflictException('El código de estado ya está en uso.');
+      }
+    }
+
+    const updated = command.code
+      ? await this.states.update(command.stateId, command.name, command.code)
+      : await this.states.update(command.stateId, command.name);
     if (!updated) {
       throw new NotFoundException('No se encontró estado de alerta.');
     }

@@ -40,6 +40,8 @@ describe('GetAlertsHandler', () => {
       update: vi.fn(),
       deletePending: vi.fn(),
       getDefaultPendingStateId: vi.fn(),
+      getStateCode: vi.fn(),
+      findStateIdByCode: vi.fn(),
     });
 
     const repo = mockRepo();
@@ -68,6 +70,8 @@ describe('GetAlertsHandler', () => {
       update: vi.fn(),
       deletePending: vi.fn(),
       getDefaultPendingStateId: vi.fn(),
+      getStateCode: vi.fn(),
+      findStateIdByCode: vi.fn(),
     });
 
     const repo = mockRepo();

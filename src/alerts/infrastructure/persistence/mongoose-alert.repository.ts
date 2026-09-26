@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { type Model, Types } from 'mongoose';
+import { StateCode } from '../../../states/domain/state-code.enum.js';
 import type { AlertEntity } from '../../domain/alert.entity.js';
 import type {
   AlertRepository,
@@ -10,6 +11,7 @@ import type {
   PaginatedAlerts,
   UpdateAlertData,
 } from '../../domain/alert.repository.js';
+import { getAllowedActions } from '../../domain/policies/alert-action.policy.js';
 import { State } from './alert-state.schema.js';
 import { Alert, type AlertDocument } from './alert.schema.js';
 
@@ -34,6 +36,10 @@ interface PopulatedNamed {
   priority?: number;
 }
 
+interface PopulatedState extends PopulatedNamed {
+  code?: StateCode;
+}
+
 @Injectable()
 export class MongooseAlertRepository implements AlertRepository {
   constructor(
@@ -54,7 +60,7 @@ export class MongooseAlertRepository implements AlertRepository {
         'name lastname DNI image email phone role availability statusAccount',
       )
       .populate<{ type: PopulatedNamed }>('type', 'name priority')
-      .populate<{ state: PopulatedNamed }>('state', 'name')
+      .populate<{ state: PopulatedState }>('state', 'name code')
       .lean()
       .exec();
 
@@ -90,7 +96,7 @@ export class MongooseAlertRepository implements AlertRepository {
           'name lastname DNI image email phone role availability statusAccount',
         )
         .populate<{ type: PopulatedNamed }>('type', 'name priority')
-        .populate<{ state: PopulatedNamed }>('state', 'name')
+        .populate<{ state: PopulatedState }>('state', 'name code')
         .lean()
         .exec(),
       this.alertModel.countDocuments(query).exec(),
@@ -116,16 +122,22 @@ export class MongooseAlertRepository implements AlertRepository {
     for (const st of statesList) {
       const count = stateCountMap.get(st._id.toString()) ?? 0;
       totalAllAlerts += count;
-      const upperName = st.name.toUpperCase();
 
-      if (upperName.includes('PENDIENTE')) {
-        pending += count;
-      } else if (upperName.includes('PROCESO')) {
-        inProcess += count;
-      } else if (upperName.includes('RESUELT')) {
-        resolved += count;
-      } else if (upperName.includes('RECHAZAD') || upperName.includes('CANCELAD')) {
-        rejected += count;
+      switch (st.code) {
+        case StateCode.PENDING:
+          pending += count;
+          break;
+        case StateCode.IN_PROGRESS:
+          inProcess += count;
+          break;
+        case StateCode.RESOLVED:
+          resolved += count;
+          break;
+        case StateCode.REJECTED:
+          rejected += count;
+          break;
+        default:
+          break;
       }
     }
 
@@ -161,7 +173,7 @@ export class MongooseAlertRepository implements AlertRepository {
           'name lastname DNI image email phone role availability statusAccount',
         )
         .populate<{ type: PopulatedNamed }>('type', 'name priority')
-        .populate<{ state: PopulatedNamed }>('state', 'name')
+        .populate<{ state: PopulatedState }>('state', 'name code')
         .lean()
         .exec(),
       this.alertModel.countDocuments(query).exec(),
@@ -190,7 +202,7 @@ export class MongooseAlertRepository implements AlertRepository {
           'name lastname DNI image email phone role availability statusAccount',
         )
         .populate<{ type: PopulatedNamed }>('type', 'name priority')
-        .populate<{ state: PopulatedNamed }>('state', 'name')
+        .populate<{ state: PopulatedState }>('state', 'name code')
         .lean()
         .exec(),
       this.alertModel.countDocuments(query).exec(),
@@ -312,26 +324,21 @@ export class MongooseAlertRepository implements AlertRepository {
   }
 
   async getDefaultPendingStateId(): Promise<string | null> {
-    const state = await this.stateModel
-      .findOne({ name: { $regex: /pendiente/i } })
-      .lean()
-      .exec();
-
-    if (state) {
-      return state._id.toString();
-    }
-
-    // Legacy fallback known state id
-    return '6163a7eac89043838a762432';
+    return this.findStateIdByCode(StateCode.PENDING);
   }
 
-  async getStateName(stateId: string): Promise<string | null> {
+  async getStateCode(stateId: string): Promise<StateCode | null> {
     if (!Types.ObjectId.isValid(stateId)) {
       return null;
     }
 
     const state = await this.stateModel.findById(stateId).lean().exec();
-    return state?.name ?? null;
+    return state?.code ?? null;
+  }
+
+  async findStateIdByCode(code: StateCode): Promise<string | null> {
+    const state = await this.stateModel.findOne({ code }).lean().exec();
+    return state ? state._id.toString() : null;
   }
 
 
@@ -341,7 +348,7 @@ export class MongooseAlertRepository implements AlertRepository {
       id_user: Types.ObjectId | PopulatedUser;
       attendedBy?: Types.ObjectId | PopulatedUser;
       type: Types.ObjectId | PopulatedNamed;
-      state: Types.ObjectId | PopulatedNamed;
+      state: Types.ObjectId | PopulatedState;
       createdAt?: Date;
       updatedAt?: Date;
     },
@@ -351,6 +358,7 @@ export class MongooseAlertRepository implements AlertRepository {
       doc.attendedBy && typeof doc.attendedBy === 'object' && 'name' in doc.attendedBy;
     const isTypePopulated = doc.type && typeof doc.type === 'object' && 'name' in doc.type;
     const isStatePopulated = doc.state && typeof doc.state === 'object' && 'name' in doc.state;
+    const stateCode = isStatePopulated ? (doc.state as PopulatedState).code : undefined;
 
     return {
       id: doc._id.toString(),
@@ -413,10 +421,12 @@ export class MongooseAlertRepository implements AlertRepository {
         : undefined,
       state: isStatePopulated
         ? {
-            id: (doc.state as PopulatedNamed)._id.toString(),
-            name: (doc.state as PopulatedNamed).name,
+            id: (doc.state as PopulatedState)._id.toString(),
+            name: (doc.state as PopulatedState).name,
+            code: stateCode,
           }
         : undefined,
+      allowedActions: getAllowedActions(stateCode),
     };
   }
 }

@@ -1,3 +1,4 @@
+import type { StateCode } from '../../states/domain/state-code.enum.js';
 import type { AlertEntity } from './alert.entity.js';
 
 export const ALERT_REPOSITORY = Symbol('ALERT_REPOSITORY');
@@ -51,7 +52,8 @@ export interface AlertRepository {
   update(id: string, data: UpdateAlertData): Promise<AlertEntity | null>;
   deletePending(): Promise<number>;
   getDefaultPendingStateId(): Promise<string | null>;
-  getStateName(stateId: string): Promise<string | null>;
+  getStateCode(stateId: string): Promise<StateCode | null>;
+  findStateIdByCode(code: StateCode): Promise<string | null>;
 }
 
 

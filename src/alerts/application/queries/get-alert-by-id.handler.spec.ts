@@ -26,6 +26,8 @@ describe('GetAlertByIdHandler', () => {
     update: vi.fn(),
     deletePending: vi.fn(),
     getDefaultPendingStateId: vi.fn(),
+    getStateCode: vi.fn(),
+    findStateIdByCode: vi.fn(),
   });
 
   it('retrieves an alert by its ID', async () => {

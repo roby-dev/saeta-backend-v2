@@ -19,9 +19,13 @@ export interface AlertTypeSummary {
   priority?: number;
 }
 
+import type { StateCode } from '../../states/domain/state-code.enum.js';
+import type { AlertAction } from './policies/alert-action.policy.js';
+
 export interface AlertStateSummary {
   id: string;
   name: string;
+  code?: StateCode;
 }
 
 export interface AlertEntity {
@@ -45,4 +49,7 @@ export interface AlertEntity {
   attendedBy?: AlertUserSummary;
   type?: AlertTypeSummary;
   state?: AlertStateSummary;
+
+  // Actions the current alert.state.code allows a client to take (see getAllowedActions).
+  allowedActions?: AlertAction[];
 }
