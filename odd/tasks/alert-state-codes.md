@@ -27,7 +27,7 @@ States are `{ id, name }` only. Frontend and backend classify states with `name.
 
 ## Tasks
 - [x] T1 (backend, delegated writer) State `code`: domain enum, entity, schema (unique sparse), create/update DTOs (optional code), repository `findByCode`, startup backfill. Tests. — commit `ece841e`; RED: 3 failing suites/4 failing tests (create/update-state code-conflict specs + new backfill spec importing missing files) → GREEN: 39/39 files, 179/179 tests.
-- [ ] T2 (backend, delegated writer) Replace name matching with `code` in `update-alert.handler.ts` rules, `mongoose-alert.repository.ts` counts + default pending state, dashboard overview handler. Tests.
+- [x] T2 (backend, delegated writer) Replace name matching with `code` in `update-alert.handler.ts` rules, `mongoose-alert.repository.ts` counts + default pending state, dashboard overview handler. Tests. — commit `9dfd415`; RED: 13 failing tests across 3 files (update-alert.handler.spec.ts rewritten to key by code + new mongoose-alert.repository.spec.ts + dashboard rename-proof test) → GREEN: 40/40 files, 190/190 tests. Deviation: dropped the hardcoded legacy fallback state id in `getDefaultPendingStateId` per the doc's "otherwise remove" instruction — now returns `null` if no state carries `PENDING` yet (surfaces as the existing `BadRequestException` in `create-alert.handler.ts`).
 - [ ] T3 (backend, delegated writer) Alert response: populate `state.code`; domain policy `getAllowedActions(code)`; `allowedActions` on alert entity/response. Tests.
 - [ ] T4 (backend, delegated writer) `POST /alerts/:id/reject` (optional commentary) and `POST /alerts/:id/delegate` (`attendedById`, optional commentary): commands resolve target state by code, reject disallowed transitions (409), emit existing `AlertUpdatedEvent`. Tests.
 - [ ] T5 (frontend, delegated writer) Models + service methods; shared state-style helper by code; map and list use `allowedActions` and new endpoints; remove all name matching. Tests.
@@ -39,6 +39,7 @@ States are `{ id, name }` only. Frontend and backend classify states with `name.
 
 ## Progress / evidence
 - T1 done (commit `ece841e`). `pnpm test`: 39 files / 179 tests passing.
+- T2 done (commit `9dfd415`). `pnpm test`: 40 files / 190 tests passing. `pnpm build`: clean.
 
 ## Next step
-T2.
+T3.
